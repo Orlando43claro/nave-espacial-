@@ -35,20 +35,18 @@ const wBtn3 = document.getElementById('wBtn3');
 const wBtn4 = document.getElementById('wBtn4');
 
 // -------------------------------------------------------------
-// SISTEMA DE ESCALADO Y ADAPTABILIDAD RESPONSIVA (AUTO-FIT)
+// 1. ESCALADO RESPONSIVO (AUTO-FIT)
 // -------------------------------------------------------------
-const BASE_WIDTH = 360;  // Ancho lógico del juego
-const BASE_HEIGHT = 500; // Alto lógico del juego
+const BASE_WIDTH = 360;  
+const BASE_HEIGHT = 500; 
 
 function resizeCanvas() {
   const containerWidth = gameContainer.clientWidth || window.innerWidth;
   const containerHeight = gameContainer.clientHeight || window.innerHeight;
 
-  // Ajustar dimensiones lógicas fijas para que la física no cambie
   canvas.width = BASE_WIDTH;
   canvas.height = BASE_HEIGHT;
 
-  // Calcular la mejor escala para no deformar los gráficos
   const scale = Math.min(containerWidth / BASE_WIDTH, containerHeight / BASE_HEIGHT);
   canvas.style.width = `${BASE_WIDTH * scale}px`;
   canvas.style.height = `${BASE_HEIGHT * scale}px`;
@@ -59,7 +57,63 @@ window.addEventListener('orientationchange', resizeCanvas);
 resizeCanvas();
 
 // -------------------------------------------------------------
-// SISTEMA DE SONIDO MULTICANAL Y MÚSICA CHIPTUNE
+// 2. PERSISTENCIA LOCAL (PUNTOS, MONEDAS, GEMAS Y RÉCORD ACUMULATIVOS)
+// -------------------------------------------------------------
+let score = parseInt(localStorage.getItem('spaceShooterScore')) || 0; // Se conservan los puntos
+let highScore = parseInt(localStorage.getItem('spaceShooterHighScore')) || 0;
+let coins = parseInt(localStorage.getItem('spaceShooterCoins')) || 0;
+let gems = parseInt(localStorage.getItem('spaceShooterGems')) || 0;
+
+function saveProgress() {
+  if (score > highScore) {
+    highScore = score;
+    localStorage.setItem('spaceShooterHighScore', highScore);
+  }
+  localStorage.setItem('spaceShooterScore', score);
+  localStorage.setItem('spaceShooterCoins', coins);
+  localStorage.setItem('spaceShooterGems', gems);
+}
+
+// -------------------------------------------------------------
+// 3. MENSAJE FLOTANTE (CARD DE CONFIRMACIÓN DE COMPRA)
+// -------------------------------------------------------------
+function showPurchaseCard(itemName) {
+  let card = document.getElementById('purchaseNotificationCard');
+  if (!card) {
+    card = document.createElement('div');
+    card.id = 'purchaseNotificationCard';
+    card.style.position = 'fixed';
+    card.style.top = '20px';
+    card.style.left = '50%';
+    card.style.transform = 'translateX(-50%)';
+    card.style.backgroundColor = '#111827';
+    card.style.color = '#00ffcc';
+    card.style.border = '2px solid #00ffcc';
+    card.style.borderRadius = '10px';
+    card.style.padding = '12px 20px';
+    card.style.boxShadow = '0 0 15px rgba(0, 255, 204, 0.5)';
+    card.style.zIndex = '10000';
+    card.style.fontFamily = 'sans-serif';
+    card.style.fontWeight = 'bold';
+    card.style.fontSize = '14px';
+    card.style.textAlign = 'center';
+    card.style.transition = 'opacity 0.3s ease';
+    document.body.appendChild(card);
+  }
+
+  card.innerHTML = `🎉 ¡Has comprado: <strong>${itemName}</strong>!`;
+  card.style.opacity = '1';
+  card.style.display = 'block';
+
+  if (card.timeoutId) clearTimeout(card.timeoutId);
+  card.timeoutId = setTimeout(() => {
+    card.style.opacity = '0';
+    setTimeout(() => { card.style.display = 'none'; }, 300);
+  }, 2200);
+}
+
+// -------------------------------------------------------------
+// 4. EFECTOS Y SONIDO SINTETIZADO
 // -------------------------------------------------------------
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 let audioCtx = null;
@@ -168,12 +222,9 @@ function triggerScreenShake() {
 }
 
 // -------------------------------------------------------------
-// ESTADO Y ESTRUCTURA DE DATOS
+// 5. ESTADO GLOBAL
 // -------------------------------------------------------------
 let gameStarted = false;
-let score = 0;
-let coins = 0;
-let gems = 0;
 let lives = 3;
 let gameOver = false;
 let isPaused = false;
@@ -232,45 +283,86 @@ starLayers.forEach(layer => {
   }
 });
 
+// -------------------------------------------------------------
+// 6. MISIONES INFINITAS
+// -------------------------------------------------------------
 const missions = [
   { id: 1, desc: 'Elimina 15 Enemigos', target: 15, current: 0, rewardType: 'coins', reward: 50, done: false },
   { id: 2, desc: 'Llega a la Oleada 3', target: 3, current: 1, rewardType: 'gems', reward: 2, done: false },
   { id: 3, desc: 'Consigue 1000 Puntos', target: 1000, current: 0, rewardType: 'gems', reward: 3, done: false }
 ];
 let currentMissionIndex = 0;
+let extraMissionLevel = 1;
 
 function updateMissionUI() {
   const m = missions[currentMissionIndex];
-  if (!m) {
-    missionTextEl.textContent = "¡Todas las misiones completadas!";
-    return;
+  if (!m) return;
+  missionTextEl.textContent = `🎯 Misión: ${m.desc} (${m.current}/${m.target})`;
+}
+
+function generateNextInfiniteMission() {
+  extraMissionLevel++;
+  const isKillMission = Math.random() > 0.5;
+  let newMission;
+
+  if (isKillMission) {
+    const targetKills = 15 + (extraMissionLevel * 10);
+    newMission = {
+      id: Date.now(),
+      desc: `Elimina ${targetKills} Enemigos`,
+      target: targetKills,
+      current: 0,
+      rewardType: 'coins',
+      reward: 50 + (extraMissionLevel * 20),
+      done: false
+    };
+  } else {
+    const targetScore = score + (extraMissionLevel * 800);
+    newMission = {
+      id: Date.now(),
+      desc: `Alcanza ${targetScore} Puntos`,
+      target: targetScore,
+      current: score,
+      rewardType: 'gems',
+      reward: 2 + Math.floor(extraMissionLevel / 2),
+      done: false
+    };
   }
-  missionTextEl.textContent = `Misión: ${m.desc} (${m.current}/${m.target})`;
+
+  missions.push(newMission);
+  updateMissionUI();
 }
 
 function checkMissionProgress(type, amount = 1) {
   const m = missions[currentMissionIndex];
   if (!m || m.done) return;
 
-  if (type === 'kill' && m.id === 1) m.current += amount;
-  if (type === 'wave' && m.id === 2) m.current = amount;
-  if (type === 'score' && m.id === 3) m.current = amount;
+  if (type === 'kill' && m.desc.includes('Elimina')) m.current += amount;
+  if (type === 'wave' && m.desc.includes('Oleada')) m.current = amount;
+  if (type === 'score' && m.desc.includes('Puntos')) m.current = amount;
 
   if (m.current >= m.target) {
     m.done = true;
     if (m.rewardType === 'coins') coins += m.reward;
     if (m.rewardType === 'gems') gems += m.reward;
+    
+    saveProgress();
     updateCoinsUI();
     playPowerupSound();
+    
     currentMissionIndex++;
-    updateMissionUI();
+    if (currentMissionIndex >= missions.length) {
+      generateNextInfiniteMission();
+    } else {
+      updateMissionUI();
+    }
   } else {
     updateMissionUI();
   }
 }
 
 // -------------------------------------------------------------
-// CREACIÓN DE ENEMIGOS
+// 7. ENEMIGOS Y JEFES
 // -------------------------------------------------------------
 const enemyRows = 4;
 const enemyCols = 6;
@@ -413,7 +505,7 @@ function drawParticles() {
 }
 
 // -------------------------------------------------------------
-// RENDERIZADO GENERAL
+// 8. DIBUJO Y RENDERIZADO
 // -------------------------------------------------------------
 function drawParallaxBackground() {
   nebulaClouds.forEach(cloud => {
@@ -654,7 +746,7 @@ function drawBullets() {
 }
 
 // -------------------------------------------------------------
-// LÓGICA Y COLISIONES
+// 9. LÓGICA Y ACTUALIZACIÓN DE INTERFAZ
 // -------------------------------------------------------------
 function updatePlayer() {
   if (!player.visible) return;
@@ -692,8 +784,8 @@ function updatePowerUps() {
       else if (p.type === 'magnet') magnetTimer = 400;
       else if (p.type === 'slow') slowMoTimer = 300;
       else if (p.type === 'bomb') executeCleanBomb();
-      else if (p.type === 'coin') { coins += 5; updateCoinsUI(); }
-      else if (p.type === 'gem') { gems += 1; updateCoinsUI(); }
+      else if (p.type === 'coin') { coins += 5; saveProgress(); updateCoinsUI(); }
+      else if (p.type === 'gem') { gems += 1; saveProgress(); updateCoinsUI(); }
 
       powerUps.splice(index, 1);
     } else if (p.y > BASE_HEIGHT) {
@@ -713,6 +805,7 @@ function executeCleanBomb() {
     }
   });
   scoreEl.textContent = score;
+  saveProgress();
 }
 
 function updateBullets() {
@@ -827,6 +920,7 @@ function updateEnemies() {
           enemy.alive = false;
           score += enemy.points;
           scoreEl.textContent = score;
+          saveProgress();
           if (shieldTimer <= 0) handlePlayerHit();
         }
 
@@ -890,6 +984,7 @@ function checkCollisions() {
           triggerExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, enemy.color);
           score += enemy.points;
           scoreEl.textContent = score;
+          saveProgress();
           checkMissionProgress('kill', 1);
           checkMissionProgress('score', score);
           dropPowerUp(enemy.x, enemy.y);
@@ -915,6 +1010,7 @@ function checkCollisions() {
         boss = null;
         score += 500;
         scoreEl.textContent = score;
+        saveProgress();
         startWaveTransition();
       }
     }
@@ -935,11 +1031,12 @@ function startWaveTransition() {
 }
 
 function updateCoinsUI() {
+  scoreEl.textContent = score;
   coinsEl.textContent = coins;
   gemsEl.textContent = gems;
-  shopCoinsEl.textContent = coins;
-  shopGemsEl.textContent = gems;
-  shopScoreEl.textContent = score;
+  if (shopCoinsEl) shopCoinsEl.textContent = coins;
+  if (shopGemsEl) shopGemsEl.textContent = gems;
+  if (shopScoreEl) shopScoreEl.textContent = score; // Muestra los puntos acumulados en la tienda
 }
 
 function shoot() {
@@ -966,8 +1063,8 @@ function shoot() {
     ammo[3]--;
     playerBullets.push(
       { x: player.x + player.width / 2 - 2, y: player.y, width: 4, height: 12, speed: 8, vx: 0, damage: 1, color: '#ff00ff' },
-      { x: player.x + 2, y: player.y + 4, width: 4, height: 12, speed: 7.5, vx: -1.5, damage: 1, color: '#ff00ff' },
-      { x: player.x + player.width - 6, y: player.y + 4, width: 4, height: 12, speed: 7.5, vx: 1.5, damage: 1, color: '#ff00ff' }
+      { x: player.x + 2, y: player.y + 4, width: 4, height: 7.5, vx: -1.5, damage: 1, color: '#ff00ff' },
+      { x: player.x + player.width - 6, y: player.y + 4, width: 4, height: 7.5, vx: 1.5, damage: 1, color: '#ff00ff' }
     );
   } else if (currentWeapon === 4 && ammo[4] > 0) {
     ammo[4]--;
@@ -979,13 +1076,14 @@ function shoot() {
 }
 
 function endGame() {
+  saveProgress();
   gameOver = true;
   playBtn.textContent = '🔄 Juego Nuevo';
   playBtn.classList.remove('hidden');
 }
 
 // -------------------------------------------------------------
-// GAME LOOP Y EVENTOS
+// 10. BUCLE PRINCIPAL Y EVENTOS DE TIENDA CON NOTIFICACIONES
 // -------------------------------------------------------------
 function gameLoop() {
   ctx.clearRect(0, 0, BASE_WIDTH, BASE_HEIGHT);
@@ -996,10 +1094,14 @@ function gameLoop() {
     ctx.fillStyle = '#00ffcc';
     ctx.font = 'bold 22px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('SPACE SHOOTER DELUXE', BASE_WIDTH / 2, BASE_HEIGHT / 2 - 20);
+    ctx.fillText('SPACE SHOOTER DELUXE', BASE_WIDTH / 2, BASE_HEIGHT / 2 - 30);
     ctx.font = '14px sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('Presiona "Jugar" para comenzar', BASE_WIDTH / 2, BASE_HEIGHT / 2 + 10);
+    ctx.fillText('Presiona "Jugar" para comenzar', BASE_WIDTH / 2, BASE_HEIGHT / 2);
+    if (highScore > 0) {
+      ctx.fillStyle = '#ffea00';
+      ctx.fillText(`🏆 Récord Máximo: ${highScore}`, BASE_WIDTH / 2, BASE_HEIGHT / 2 + 30);
+    }
     requestAnimationFrame(gameLoop);
     return;
   }
@@ -1008,7 +1110,12 @@ function gameLoop() {
     ctx.fillStyle = '#ff0055';
     ctx.font = 'bold 26px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('¡GAME OVER!', BASE_WIDTH / 2, BASE_HEIGHT / 2);
+    ctx.fillText('¡GAME OVER!', BASE_WIDTH / 2, BASE_HEIGHT / 2 - 20);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '16px sans-serif';
+    ctx.fillText(`Puntaje Acumulado: ${score}`, BASE_WIDTH / 2, BASE_HEIGHT / 2 + 10);
+    ctx.fillStyle = '#ffea00';
+    ctx.fillText(`Mejor Récord: ${highScore}`, BASE_WIDTH / 2, BASE_HEIGHT / 2 + 35);
     return;
   }
 
@@ -1097,32 +1204,112 @@ function updateShopUI() {
   buyShip3.textContent = unlockedShips[3] ? (selectedShip === 3 ? 'Equipado' : 'Usar') : '6 💎';
 }
 
+// BOTONES DE TIENDA CON CARDS DE NOTIFICACIÓN Y DESCUENTOS
 buyLifeBtn.addEventListener('click', () => {
-  if (gems >= 1) { gems -= 1; lives++; livesEl.textContent = lives; updateShopUI(); shopModal.classList.add('hidden'); }
+  if (gems >= 1) { 
+    gems -= 1; 
+    lives++; 
+    saveProgress(); 
+    updateShopUI(); 
+    showPurchaseCard('Vida Extra ❤️');
+    shopModal.classList.add('hidden'); 
+  }
 });
-buyGemBtn.addEventListener('click', () => {
-  if (score >= 500) { score -= 500; gems++; scoreEl.textContent = score; updateShopUI(); shopModal.classList.add('hidden'); }
-});
-buyWeapon1.addEventListener('click', () => { selectWeapon(1); shopModal.classList.add('hidden'); });
-buyWeapon2.addEventListener('click', () => { if (coins >= 50) { coins -= 50; ammo[2] += 30; selectWeapon(2); shopModal.classList.add('hidden'); } });
-buyWeapon3.addEventListener('click', () => { if (coins >= 100) { coins -= 100; ammo[3] += 20; selectWeapon(3); shopModal.classList.add('hidden'); } });
-buyWeapon4.addEventListener('click', () => { if (coins >= 150) { coins -= 150; ammo[4] += 10; selectWeapon(4); shopModal.classList.add('hidden'); } });
 
-selectShip1.addEventListener('click', () => { selectedShip = 1; player.speed = 5; updateShopUI(); shopModal.classList.add('hidden'); });
+buyGemBtn.addEventListener('click', () => {
+  if (score >= 500) { 
+    score -= 500; 
+    gems++; 
+    saveProgress(); 
+    updateShopUI(); 
+    showPurchaseCard('1 Gema 💎 (por 500 Puntos)');
+    shopModal.classList.add('hidden'); 
+  }
+});
+
+buyWeapon1.addEventListener('click', () => { 
+  selectWeapon(1); 
+  shopModal.classList.add('hidden'); 
+});
+
+buyWeapon2.addEventListener('click', () => { 
+  if (coins >= 50) { 
+    coins -= 50; 
+    ammo[2] += 30; 
+    selectWeapon(2); 
+    saveProgress(); 
+    showPurchaseCard('Disparo Doble 💥');
+    shopModal.classList.add('hidden'); 
+  } 
+});
+
+buyWeapon3.addEventListener('click', () => { 
+  if (coins >= 100) { 
+    coins -= 100; 
+    ammo[3] += 20; 
+    selectWeapon(3); 
+    saveProgress(); 
+    showPurchaseCard('Disparo Triple 🚀');
+    shopModal.classList.add('hidden'); 
+  } 
+});
+
+buyWeapon4.addEventListener('click', () => { 
+  if (coins >= 150) { 
+    coins -= 150; 
+    ammo[4] += 10; 
+    selectWeapon(4); 
+    saveProgress(); 
+    showPurchaseCard('Cañón Plasma 🔮');
+    shopModal.classList.add('hidden'); 
+  } 
+});
+
+selectShip1.addEventListener('click', () => { 
+  selectedShip = 1; 
+  player.speed = 5; 
+  updateShopUI(); 
+  shopModal.classList.add('hidden'); 
+});
+
 buyShip2.addEventListener('click', () => {
-  if (unlockedShips[2]) { selectedShip = 2; player.speed = 7; shopModal.classList.add('hidden'); }
-  else if (gems >= 3) { gems -= 3; unlockedShips[2] = true; selectedShip = 2; player.speed = 7; shopModal.classList.add('hidden'); }
+  if (unlockedShips[2]) { 
+    selectedShip = 2; 
+    player.speed = 7; 
+    shopModal.classList.add('hidden'); 
+  } else if (gems >= 3) { 
+    gems -= 3; 
+    unlockedShips[2] = true; 
+    selectedShip = 2; 
+    player.speed = 7; 
+    saveProgress(); 
+    showPurchaseCard('Nave Veloz 🛩️');
+    shopModal.classList.add('hidden'); 
+  }
   updateShopUI();
 });
+
 buyShip3.addEventListener('click', () => {
-  if (unlockedShips[3]) { selectedShip = 3; player.speed = 5; shopModal.classList.add('hidden'); }
-  else if (gems >= 6) { gems -= 6; unlockedShips[3] = true; selectedShip = 3; player.speed = 5; shopModal.classList.add('hidden'); }
+  if (unlockedShips[3]) { 
+    selectedShip = 3; 
+    player.speed = 5; 
+    shopModal.classList.add('hidden'); 
+  } else if (gems >= 6) { 
+    gems -= 6; 
+    unlockedShips[3] = true; 
+    selectedShip = 3; 
+    player.speed = 5; 
+    saveProgress(); 
+    showPurchaseCard('Nave Pesada 🛸');
+    shopModal.classList.add('hidden'); 
+  }
   updateShopUI();
 });
 
 function startGame() {
   initAudio();
   gameStarted = true;
+  // EL SCORE YA NO SE REINICIA A 0: SE CONSERVA EL ACUMULADO GLOBAL
   lives = selectedShip === 3 ? 4 : 3;
   waveLevel = 1;
   enemySpeed = 0.4;
@@ -1139,7 +1326,6 @@ function startGame() {
   powerUps = [];
   particles = [];
 
-  scoreEl.textContent = score;
   livesEl.textContent = lives;
   updateCoinsUI();
   updateWeaponBarUI();
@@ -1154,7 +1340,7 @@ function startGame() {
 
 playBtn.addEventListener('click', startGame);
 
-// CONTROLES TÁCTILES ADAPTATIVOS
+// CONTROLES TÁCTILES
 let lastTouchX = 0, lastTouchY = 0, isDragging = false;
 
 function getCanvasCoordinates(e) {
