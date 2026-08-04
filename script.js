@@ -35,14 +35,37 @@ const wBtn3 = document.getElementById('wBtn3');
 const wBtn4 = document.getElementById('wBtn4');
 
 // -------------------------------------------------------------
-// SISTEMA DE SONIDO MULTICANAL Y MÚSICA CHIPTUNE / SYNTHWAVE
+// SISTEMA DE ESCALADO Y ADAPTABILIDAD RESPONSIVA (AUTO-FIT)
+// -------------------------------------------------------------
+const BASE_WIDTH = 360;  // Ancho lógico del juego
+const BASE_HEIGHT = 500; // Alto lógico del juego
+
+function resizeCanvas() {
+  const containerWidth = gameContainer.clientWidth || window.innerWidth;
+  const containerHeight = gameContainer.clientHeight || window.innerHeight;
+
+  // Ajustar dimensiones lógicas fijas para que la física no cambie
+  canvas.width = BASE_WIDTH;
+  canvas.height = BASE_HEIGHT;
+
+  // Calcular la mejor escala para no deformar los gráficos
+  const scale = Math.min(containerWidth / BASE_WIDTH, containerHeight / BASE_HEIGHT);
+  canvas.style.width = `${BASE_WIDTH * scale}px`;
+  canvas.style.height = `${BASE_HEIGHT * scale}px`;
+}
+
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', resizeCanvas);
+resizeCanvas();
+
+// -------------------------------------------------------------
+// SISTEMA DE SONIDO MULTICANAL Y MÚSICA CHIPTUNE
 // -------------------------------------------------------------
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 let audioCtx = null;
 let bgmTimer = null;
 let musicStep = 0;
 
-// Melodía Chiptune Retro 8-bits
 const synthNotes = [220, 261.63, 293.66, 329.63, 220, 261.63, 349.23, 329.63];
 
 function initAudio() {
@@ -139,7 +162,7 @@ function playPowerupSound() {
 
 function triggerScreenShake() {
   gameContainer.classList.remove('shake');
-  void gameContainer.offsetWidth; // Reflow
+  void gameContainer.offsetWidth;
   gameContainer.classList.add('shake');
   setTimeout(() => gameContainer.classList.remove('shake'), 300);
 }
@@ -159,7 +182,6 @@ let diveTimer = 0;
 let waveLevel = 1;
 let isWaveTransitioning = false;
 
-// Estado de Power-Ups Temporales
 let shieldTimer = 0;
 let magnetTimer = 0;
 let slowMoTimer = 0;
@@ -171,8 +193,8 @@ let currentWeapon = 1;
 const ammo = { 1: Infinity, 2: 0, 3: 0, 4: 0 };
 
 const player = {
-  x: canvas.width / 2 - 16,
-  y: canvas.height - 50,
+  x: BASE_WIDTH / 2 - 16,
+  y: BASE_HEIGHT - 50,
   width: 32,
   height: 26,
   speed: 5,
@@ -190,7 +212,6 @@ let particles = [];
 let enemyDirection = 1;
 let enemySpeed = 0.4;
 
-// Sistema de Parallax y Nebulosas
 const nebulaClouds = [
   { x: 50, y: 100, radius: 80, color: 'rgba(138, 43, 226, 0.12)', speed: 0.15 },
   { x: 280, y: 300, radius: 100, color: 'rgba(0, 255, 255, 0.08)', speed: 0.2 }
@@ -205,13 +226,12 @@ const starLayers = [
 starLayers.forEach(layer => {
   for (let i = 0; i < layer.count; i++) {
     layer.stars.push({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height
+      x: Math.random() * BASE_WIDTH,
+      y: Math.random() * BASE_HEIGHT
     });
   }
 });
 
-// Sistema de Misiones
 const missions = [
   { id: 1, desc: 'Elimina 15 Enemigos', target: 15, current: 0, rewardType: 'coins', reward: 50, done: false },
   { id: 2, desc: 'Llega a la Oleada 3', target: 3, current: 1, rewardType: 'gems', reward: 2, done: false },
@@ -250,36 +270,35 @@ function checkMissionProgress(type, amount = 1) {
 }
 
 // -------------------------------------------------------------
-// CREACIÓN Y MANEJO DE ENEMIGOS VARIADOS
+// CREACIÓN DE ENEMIGOS
 // -------------------------------------------------------------
 const enemyRows = 4;
 const enemyCols = 6;
-const enemyWidth = 32;
-const enemyHeight = 24;
+const enemyWidth = 24;
+const enemyHeight = 18;
 
 function createEnemies() {
   enemies = [];
   boss = null;
   for (let r = 0; r < enemyRows; r++) {
     for (let c = 0; c < enemyCols; c++) {
-      const baseX = 24 + c * 52;
-      const baseY = 35 + r * 35;
+      const baseX = 20 + c * 42;
+      const baseY = 35 + r * 30;
 
-      // Determinación de tipos de enemigo por fila
       let type = 'standard';
       let hp = 3;
       let color = '#ff9900';
 
       if (r === 0) {
-        type = 'shielder'; // Requiere más daño / Escudero
+        type = 'shielder';
         hp = 6;
         color = '#00ffff';
       } else if (r === 1) {
-        type = 'healer'; // Curandero
+        type = 'healer';
         hp = 4;
         color = '#32cd32';
       } else if (r === 2) {
-        type = 'kamikaze'; // Rápido y agresivo
+        type = 'kamikaze';
         hp = 2;
         color = '#ff0055';
       }
@@ -309,10 +328,10 @@ function createEnemies() {
 
 function spawnBoss() {
   boss = {
-    x: canvas.width / 2 - 45,
+    x: BASE_WIDTH / 2 - 40,
     y: 45,
-    width: 90,
-    height: 55,
+    width: 80,
+    height: 50,
     hp: 40 + waveLevel * 10,
     maxHp: 40 + waveLevel * 10,
     color: '#b000ff',
@@ -322,19 +341,16 @@ function spawnBoss() {
   };
 }
 
-// -------------------------------------------------------------
-// DROPS Y POWER-UPS
-// -------------------------------------------------------------
 function dropPowerUp(x, y) {
   const rand = Math.random();
   let type = null;
 
-  if (rand < 0.03) type = 'shield';       // 🛡️ Escudo
-  else if (rand < 0.06) type = 'magnet';  // 🧲 Imán
-  else if (rand < 0.09) type = 'slow';    // ⏱️ Slow-Mo
-  else if (rand < 0.11) type = 'bomb';    // 💣 Bomba
-  else if (rand < 0.20) type = 'coin';    // Moneda flotante
-  else if (rand < 0.23) type = 'gem';     // Diamante flotante
+  if (rand < 0.03) type = 'shield';
+  else if (rand < 0.06) type = 'magnet';
+  else if (rand < 0.09) type = 'slow';
+  else if (rand < 0.11) type = 'bomb';
+  else if (rand < 0.20) type = 'coin';
+  else if (rand < 0.23) type = 'gem';
 
   if (type) {
     powerUps.push({
@@ -347,9 +363,6 @@ function dropPowerUp(x, y) {
   }
 }
 
-// -------------------------------------------------------------
-// SISTEMA DE PARTÍCULAS & AMBIENTACIÓN VISUAL (JUICY)
-// -------------------------------------------------------------
 function triggerExplosion(x, y, color = null) {
   triggerScreenShake();
   for (let i = 0; i < 25; i++) {
@@ -400,10 +413,9 @@ function drawParticles() {
 }
 
 // -------------------------------------------------------------
-// RENDERIZADO (FONDO, NAVE, ENEMIGOS REALISTAS, NAVE MADRE)
+// RENDERIZADO GENERAL
 // -------------------------------------------------------------
 function drawParallaxBackground() {
-  // Nebulosas de Fondo
   nebulaClouds.forEach(cloud => {
     ctx.save();
     ctx.fillStyle = cloud.color;
@@ -414,20 +426,19 @@ function drawParallaxBackground() {
 
     if (!isPaused && gameStarted) {
       cloud.y += cloud.speed;
-      if (cloud.y - cloud.radius > canvas.height) cloud.y = -cloud.radius;
+      if (cloud.y - cloud.radius > BASE_HEIGHT) cloud.y = -cloud.radius;
     }
   });
 
-  // Capas de Estrellas Parallax
   starLayers.forEach(layer => {
     ctx.fillStyle = '#ffffff';
     layer.stars.forEach(star => {
       ctx.fillRect(star.x, star.y, layer.size, layer.size);
       if (!isPaused && gameStarted) {
         star.y += layer.speed * (slowMoTimer > 0 ? 0.5 : 1.0);
-        if (star.y > canvas.height) {
+        if (star.y > BASE_HEIGHT) {
           star.y = 0;
-          star.x = Math.random() * canvas.width;
+          star.x = Math.random() * BASE_WIDTH;
         }
       }
     });
@@ -440,13 +451,11 @@ function drawPlayer() {
   const x = player.x;
   const y = player.y;
 
-  // Estela de Propulsores (Dust / Engine Trails)
   spawnEngineTrail(x + 16, y + 24, shieldTimer > 0 ? '#00ffff' : '#ff5500');
 
   ctx.save();
   ctx.shadowBlur = 12;
 
-  // Efecto Escudo Temporal Activo
   if (shieldTimer > 0) {
     ctx.strokeStyle = '#00ffff';
     ctx.lineWidth = 2;
@@ -513,8 +522,6 @@ function drawEnemies() {
     ctx.shadowBlur = 8;
     ctx.shadowColor = enemy.color;
 
-    // --- DISEÑO DETALLADO DE NAVES ENEMIGAS ---
-    // 1. Cuerpo / Chasis Oscuro Metalizado
     ctx.fillStyle = '#1e1e2f';
     ctx.beginPath();
     ctx.moveTo(x + w * 0.5, y + h); 
@@ -525,7 +532,6 @@ function drawEnemies() {
     ctx.closePath();
     ctx.fill();
 
-    // 2. Alerones y Blindaje Frontal según Tipo/Color
     ctx.fillStyle = enemy.color;
     ctx.beginPath();
     ctx.moveTo(x + w * 0.5, y + h * 0.85);
@@ -537,34 +543,22 @@ function drawEnemies() {
     ctx.closePath();
     ctx.fill();
 
-    // 3. Cabina de Piloto / Sensor Neón Central
     ctx.fillStyle = '#00ffff';
     ctx.beginPath();
     ctx.ellipse(x + w * 0.5, y + h * 0.4, w * 0.15, h * 0.2, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // 4. Cañones Frontales Laterales
-    ctx.fillStyle = '#aaaaaa';
-    ctx.fillRect(x + w * 0.15, y + h * 0.7, 3, 6);
-    ctx.fillRect(x + w * 0.85 - 3, y + h * 0.7, 3, 6);
-
-    // Renderizado especial según el tipo de enemigo
     if (enemy.type === 'shielder' && enemy.shieldHp > 0) {
       ctx.strokeStyle = '#00ffff';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(x + w * 0.5, y + h * 0.5, 20, 0, Math.PI * 2);
+      ctx.arc(x + w * 0.5, y + h * 0.5, 14, 0, Math.PI * 2);
       ctx.stroke();
-    } else if (enemy.type === 'healer') {
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(x + w * 0.5 - 2, y + h * 0.3 - 2, 4, 8);
-      ctx.fillRect(x + w * 0.5 - 4, y + h * 0.3, 8, 4);
     }
 
     ctx.restore();
   });
 
-  // --- DISEÑO DETALLADO DE NAVE MADRE (BOSS) ---
   if (boss) {
     const bx = boss.x;
     const by = boss.y;
@@ -575,7 +569,6 @@ function drawEnemies() {
     ctx.shadowBlur = boss.phase2 ? 22 : 14;
     ctx.shadowColor = boss.phase2 ? '#ff0055' : '#b000ff';
 
-    // 1. Estructura Principal e Alas Pesadas
     ctx.fillStyle = '#111122';
     ctx.beginPath();
     ctx.moveTo(bx + bw * 0.5, by + bh); 
@@ -589,7 +582,6 @@ function drawEnemies() {
     ctx.closePath();
     ctx.fill();
 
-    // 2. Blindaje Intermedio y Coloración de Fase
     ctx.fillStyle = boss.phase2 ? '#ff0055' : '#7b00ff';
     ctx.beginPath();
     ctx.moveTo(bx + bw * 0.5, by + bh * 0.85);
@@ -601,7 +593,6 @@ function drawEnemies() {
     ctx.closePath();
     ctx.fill();
 
-    // 3. Núcleo de Energía Central (Pulsante)
     const coreColor = boss.phase2 ? '#ffea00' : '#00ffff';
     ctx.fillStyle = coreColor;
     ctx.shadowColor = coreColor;
@@ -610,23 +601,15 @@ function drawEnemies() {
     ctx.arc(bx + bw * 0.5, by + bh * 0.45, 12, 0, Math.PI * 2);
     ctx.fill();
 
-    // 4. Cañones Industriales Dobles
-    ctx.fillStyle = '#888899';
-    ctx.fillRect(bx + 4, by + bh * 0.7, 5, 14);
-    ctx.fillRect(bx + 14, by + bh * 0.8, 5, 14);
-    ctx.fillRect(bx + bw - 9, by + bh * 0.7, 5, 14);
-    ctx.fillRect(bx + bw - 19, by + bh * 0.8, 5, 14);
-
-    // 5. Barra de Vida del Jefe Superior
     ctx.shadowBlur = 0;
     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    ctx.fillRect(18, 8, canvas.width - 36, 10);
+    ctx.fillRect(18, 8, BASE_WIDTH - 36, 10);
     
     ctx.fillStyle = '#ff0055';
-    ctx.fillRect(20, 10, canvas.width - 40, 6);
+    ctx.fillRect(20, 10, BASE_WIDTH - 40, 6);
     
     ctx.fillStyle = boss.phase2 ? '#ffea00' : '#00ffcc';
-    ctx.fillRect(20, 10, (canvas.width - 40) * Math.max(0, (boss.hp / boss.maxHp)), 6);
+    ctx.fillRect(20, 10, (BASE_WIDTH - 40) * Math.max(0, (boss.hp / boss.maxHp)), 6);
 
     ctx.restore();
   }
@@ -655,7 +638,6 @@ function drawPowerUps() {
 function drawBullets() {
   ctx.save();
   playerBullets.forEach(b => {
-    // Glow Dinámico Neón
     ctx.shadowBlur = 12;
     ctx.shadowColor = b.color;
     ctx.fillStyle = b.color;
@@ -672,7 +654,7 @@ function drawBullets() {
 }
 
 // -------------------------------------------------------------
-// ACTUALIZACIÓN DE LÓGICA DE JUEGO & COLISIONES
+// LÓGICA Y COLISIONES
 // -------------------------------------------------------------
 function updatePlayer() {
   if (!player.visible) return;
@@ -681,11 +663,10 @@ function updatePlayer() {
   player.y += player.dy;
 
   if (player.x < 0) player.x = 0;
-  if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+  if (player.x + player.width > BASE_WIDTH) player.x = BASE_WIDTH - player.width;
   if (player.y < 30) player.y = 30;
-  if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
+  if (player.y + player.height > BASE_HEIGHT) player.y = BASE_HEIGHT - player.height;
 
-  // Timers de Efectos
   if (shieldTimer > 0) shieldTimer--;
   if (magnetTimer > 0) magnetTimer--;
   if (slowMoTimer > 0) slowMoTimer--;
@@ -693,7 +674,6 @@ function updatePlayer() {
 
 function updatePowerUps() {
   powerUps.forEach((p, index) => {
-    // Imán activado: Atraer ítems hacia la nave
     if (magnetTimer > 0 || p.type === 'coin' || p.type === 'gem') {
       const angle = Math.atan2(player.y - p.y, player.x - p.x);
       p.x += Math.cos(angle) * 3;
@@ -702,14 +682,13 @@ function updatePowerUps() {
       p.y += p.speed;
     }
 
-    // Colisión con la Nave
     if (
       player.visible &&
       Math.abs(p.x - (player.x + player.width / 2)) < 20 &&
       Math.abs(p.y - (player.y + player.height / 2)) < 20
     ) {
       playPowerupSound();
-      if (p.type === 'shield') shieldTimer = 300; // 5 Segundos
+      if (p.type === 'shield') shieldTimer = 300;
       else if (p.type === 'magnet') magnetTimer = 400;
       else if (p.type === 'slow') slowMoTimer = 300;
       else if (p.type === 'bomb') executeCleanBomb();
@@ -717,14 +696,14 @@ function updatePowerUps() {
       else if (p.type === 'gem') { gems += 1; updateCoinsUI(); }
 
       powerUps.splice(index, 1);
-    } else if (p.y > canvas.height) {
+    } else if (p.y > BASE_HEIGHT) {
       powerUps.splice(index, 1);
     }
   });
 }
 
 function executeCleanBomb() {
-  triggerExplosion(canvas.width / 2, canvas.height / 2, '#ff0055');
+  triggerExplosion(BASE_WIDTH / 2, BASE_HEIGHT / 2, '#ff0055');
   enemyBullets = [];
   enemies.forEach(e => {
     if (e.alive) {
@@ -740,7 +719,7 @@ function updateBullets() {
   playerBullets.forEach((b, index) => {
     b.x += b.vx || 0;
     b.y -= b.speed;
-    if (b.y < -10 || b.x < -10 || b.x > canvas.width + 10) playerBullets.splice(index, 1);
+    if (b.y < -10 || b.x < -10 || b.x > BASE_WIDTH + 10) playerBullets.splice(index, 1);
   });
 
   const speedMult = slowMoTimer > 0 ? 0.5 : 1.0;
@@ -756,7 +735,7 @@ function updateBullets() {
     ) {
       enemyBullets.splice(index, 1);
       if (shieldTimer <= 0) handlePlayerHit();
-    } else if (b.y > canvas.height) {
+    } else if (b.y > BASE_HEIGHT) {
       enemyBullets.splice(index, 1);
     }
   });
@@ -775,8 +754,8 @@ function handlePlayerHit() {
     if (lives <= 0) {
       endGame();
     } else {
-      player.x = canvas.width / 2 - 16;
-      player.y = canvas.height - 50;
+      player.x = BASE_WIDTH / 2 - 16;
+      player.y = BASE_HEIGHT - 50;
       player.visible = true;
       isExploding = false;
     }
@@ -790,7 +769,6 @@ function updateEnemies() {
   if (enemies.some(e => e.alive)) {
     let hitEdge = false;
 
-    // Lógica Curandero (Healer)
     enemies.forEach(e => {
       if (e.alive && e.type === 'healer') {
         e.healTimer++;
@@ -803,7 +781,6 @@ function updateEnemies() {
       }
     });
 
-    // Ataque Kamikaze & Picada
     diveTimer++;
     if (diveTimer > 140) {
       diveTimer = 0;
@@ -825,7 +802,7 @@ function updateEnemies() {
         enemy.x += enemySpeed * enemyDirection * speedMult;
         enemy.baseX += enemySpeed * enemyDirection * speedMult;
 
-        if (enemy.x + enemy.width >= canvas.width || enemy.x <= 0) hitEdge = true;
+        if (enemy.x + enemy.width >= BASE_WIDTH - 4 || enemy.x <= 4) hitEdge = true;
 
         if (Math.random() < 0.0006 * enemySpeed) {
           enemyBullets.push({
@@ -853,7 +830,7 @@ function updateEnemies() {
           if (shieldTimer <= 0) handlePlayerHit();
         }
 
-        if (enemy.y > canvas.height) {
+        if (enemy.y > BASE_HEIGHT) {
           enemy.diving = false;
           enemy.x = enemy.baseX;
           enemy.y = enemy.baseY;
@@ -866,12 +843,10 @@ function updateEnemies() {
     spawnBoss();
   }
 
-  // Jefe Multietapa
   if (boss) {
     boss.x += boss.dx * speedMult;
-    if (boss.x <= 0 || boss.x + boss.width >= canvas.width) boss.dx *= -1;
+    if (boss.x <= 0 || boss.x + boss.width >= BASE_WIDTH) boss.dx *= -1;
 
-    // Fase 2 al 50% de HP
     if (boss.hp <= boss.maxHp * 0.5) boss.phase2 = true;
 
     boss.shootTimer++;
@@ -898,7 +873,6 @@ function checkCollisions() {
         bullet.y < enemy.y + enemy.height &&
         bullet.y + bullet.height > enemy.y
       ) {
-        // Impacto en Escudero
         if (enemy.type === 'shielder' && enemy.shieldHp > 0) {
           enemy.shieldHp -= bullet.damage;
           playHitSound();
@@ -1011,10 +985,10 @@ function endGame() {
 }
 
 // -------------------------------------------------------------
-// BUCLE PRINCIPAL (GAME LOOP)
+// GAME LOOP Y EVENTOS
 // -------------------------------------------------------------
 function gameLoop() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0, 0, BASE_WIDTH, BASE_HEIGHT);
 
   drawParallaxBackground();
 
@@ -1022,10 +996,10 @@ function gameLoop() {
     ctx.fillStyle = '#00ffcc';
     ctx.font = 'bold 22px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('SPACE SHOOTER DELUXE', canvas.width / 2, canvas.height / 2 - 20);
+    ctx.fillText('SPACE SHOOTER DELUXE', BASE_WIDTH / 2, BASE_HEIGHT / 2 - 20);
     ctx.font = '14px sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('Presiona "Jugar" para comenzar', canvas.width / 2, canvas.height / 2 + 10);
+    ctx.fillText('Presiona "Jugar" para comenzar', BASE_WIDTH / 2, BASE_HEIGHT / 2 + 10);
     requestAnimationFrame(gameLoop);
     return;
   }
@@ -1034,7 +1008,7 @@ function gameLoop() {
     ctx.fillStyle = '#ff0055';
     ctx.font = 'bold 26px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('¡GAME OVER!', canvas.width / 2, canvas.height / 2);
+    ctx.fillText('¡GAME OVER!', BASE_WIDTH / 2, BASE_HEIGHT / 2);
     return;
   }
 
@@ -1057,15 +1031,12 @@ function gameLoop() {
     ctx.fillStyle = '#ffcc00';
     ctx.font = 'bold 24px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('PAUSADO', canvas.width / 2, canvas.height / 2);
+    ctx.fillText('PAUSADO', BASE_WIDTH / 2, BASE_HEIGHT / 2);
   }
 
   requestAnimationFrame(gameLoop);
 }
 
-// -------------------------------------------------------------
-// EVENTOS Y CONTROLES
-// -------------------------------------------------------------
 shopBtn.addEventListener('click', () => {
   initAudio();
   if (!gameStarted || gameOver) return;
@@ -1161,8 +1132,8 @@ function startGame() {
   currentWeapon = 1;
 
   player.visible = true;
-  player.x = canvas.width / 2 - 16;
-  player.y = canvas.height - 50;
+  player.x = BASE_WIDTH / 2 - 16;
+  player.y = BASE_HEIGHT - 50;
   playerBullets = [];
   enemyBullets = [];
   powerUps = [];
@@ -1183,24 +1154,38 @@ function startGame() {
 
 playBtn.addEventListener('click', startGame);
 
-// Controles Táctiles y Teclado
+// CONTROLES TÁCTILES ADAPTATIVOS
 let lastTouchX = 0, lastTouchY = 0, isDragging = false;
+
+function getCanvasCoordinates(e) {
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  return {
+    x: (touch.clientX - rect.left) * (BASE_WIDTH / rect.width),
+    y: (touch.clientY - rect.top) * (BASE_HEIGHT / rect.height)
+  };
+}
+
 canvas.addEventListener('touchstart', (e) => {
   e.preventDefault(); initAudio();
   if (!gameStarted || gameOver || isPaused || !player.visible) return;
-  const touch = e.touches[0];
-  lastTouchX = touch.clientX; lastTouchY = touch.clientY; isDragging = false;
+  const coords = getCanvasCoordinates(e);
+  lastTouchX = coords.x;
+  lastTouchY = coords.y;
+  isDragging = false;
 }, { passive: false });
 
 canvas.addEventListener('touchmove', (e) => {
   e.preventDefault();
   if (!gameStarted || gameOver || isPaused || !player.visible) return;
-  const touch = e.touches[0];
-  const deltaX = touch.clientX - lastTouchX;
-  const deltaY = touch.clientY - lastTouchY;
-  if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) isDragging = true;
-  player.x += deltaX; player.y += deltaY;
-  lastTouchX = touch.clientX; lastTouchY = touch.clientY;
+  const coords = getCanvasCoordinates(e);
+  const deltaX = coords.x - lastTouchX;
+  const deltaY = coords.y - lastTouchY;
+  if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) isDragging = true;
+  player.x += deltaX;
+  player.y += deltaY;
+  lastTouchX = coords.x;
+  lastTouchY = coords.y;
 }, { passive: false });
 
 canvas.addEventListener('touchend', (e) => {
@@ -1230,7 +1215,6 @@ pauseBtn.addEventListener('click', () => {
   pauseBtn.textContent = isPaused ? '▶ Reanudar' : '⏸ Pausa';
 });
 
-// Inicialización
 createEnemies();
 updateCoinsUI();
 updateShopUI();
