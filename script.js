@@ -57,12 +57,20 @@ window.addEventListener('orientationchange', resizeCanvas);
 resizeCanvas();
 
 // -------------------------------------------------------------
-// 2. PERSISTENCIA LOCAL (PUNTOS, MONEDAS, GEMAS Y RÉCORD ACUMULATIVOS)
+// 2. PERSISTENCIA LOCAL (PUNTOS, MONEDAS, GEMAS Y MUNICIÓN PERSISTENTE)
 // -------------------------------------------------------------
-let score = parseInt(localStorage.getItem('spaceShooterScore')) || 0; // Se conservan los puntos
+let score = parseInt(localStorage.getItem('spaceShooterScore')) || 0;
 let highScore = parseInt(localStorage.getItem('spaceShooterHighScore')) || 0;
 let coins = parseInt(localStorage.getItem('spaceShooterCoins')) || 0;
 let gems = parseInt(localStorage.getItem('spaceShooterGems')) || 0;
+
+// Cargar munición guardada
+const ammo = {
+  1: Infinity,
+  2: parseInt(localStorage.getItem('spaceShooterAmmo2')) || 0,
+  3: parseInt(localStorage.getItem('spaceShooterAmmo3')) || 0,
+  4: parseInt(localStorage.getItem('spaceShooterAmmo4')) || 0
+};
 
 function saveProgress() {
   if (score > highScore) {
@@ -72,6 +80,11 @@ function saveProgress() {
   localStorage.setItem('spaceShooterScore', score);
   localStorage.setItem('spaceShooterCoins', coins);
   localStorage.setItem('spaceShooterGems', gems);
+  
+  // Guardar munición
+  localStorage.setItem('spaceShooterAmmo2', ammo[2]);
+  localStorage.setItem('spaceShooterAmmo3', ammo[3]);
+  localStorage.setItem('spaceShooterAmmo4', ammo[4]);
 }
 
 // -------------------------------------------------------------
@@ -241,7 +254,6 @@ let selectedShip = 1;
 let unlockedShips = { 1: true, 2: false, 3: false };
 
 let currentWeapon = 1;
-const ammo = { 1: Infinity, 2: 0, 3: 0, 4: 0 };
 
 const player = {
   x: BASE_WIDTH / 2 - 16,
@@ -1036,7 +1048,7 @@ function updateCoinsUI() {
   gemsEl.textContent = gems;
   if (shopCoinsEl) shopCoinsEl.textContent = coins;
   if (shopGemsEl) shopGemsEl.textContent = gems;
-  if (shopScoreEl) shopScoreEl.textContent = score; // Muestra los puntos acumulados en la tienda
+  if (shopScoreEl) shopScoreEl.textContent = score;
 }
 
 function shoot() {
@@ -1055,12 +1067,14 @@ function shoot() {
     playerBullets.push({ x: player.x + player.width / 2 - 2, y: player.y, width: 4, height: 12, speed: 8, damage: 1, color: '#00ffcc' });
   } else if (currentWeapon === 2 && ammo[2] > 0) {
     ammo[2]--;
+    saveProgress(); // Guardar al gastar munición
     playerBullets.push(
       { x: player.x + 4, y: player.y + 4, width: 4, height: 12, speed: 8, damage: 1, color: '#ffea00' },
       { x: player.x + player.width - 8, y: player.y + 4, width: 4, height: 12, speed: 8, damage: 1, color: '#ffea00' }
     );
   } else if (currentWeapon === 3 && ammo[3] > 0) {
     ammo[3]--;
+    saveProgress(); // Guardar al gastar munición
     playerBullets.push(
       { x: player.x + player.width / 2 - 2, y: player.y, width: 4, height: 12, speed: 8, vx: 0, damage: 1, color: '#ff00ff' },
       { x: player.x + 2, y: player.y + 4, width: 4, height: 7.5, vx: -1.5, damage: 1, color: '#ff00ff' },
@@ -1068,6 +1082,7 @@ function shoot() {
     );
   } else if (currentWeapon === 4 && ammo[4] > 0) {
     ammo[4]--;
+    saveProgress(); // Guardar al gastar munición
     playerBullets.push({ x: player.x + player.width / 2 - 6, y: player.y, width: 12, height: 20, speed: 10, damage: 3, color: '#00ffff' });
   }
 
@@ -1204,7 +1219,6 @@ function updateShopUI() {
   buyShip3.textContent = unlockedShips[3] ? (selectedShip === 3 ? 'Equipado' : 'Usar') : '6 💎';
 }
 
-// BOTONES DE TIENDA CON CARDS DE NOTIFICACIÓN Y DESCUENTOS
 buyLifeBtn.addEventListener('click', () => {
   if (gems >= 1) { 
     gems -= 1; 
@@ -1309,14 +1323,17 @@ buyShip3.addEventListener('click', () => {
 function startGame() {
   initAudio();
   gameStarted = true;
-  // EL SCORE YA NO SE REINICIA A 0: SE CONSERVA EL ACUMULADO GLOBAL
   lives = selectedShip === 3 ? 4 : 3;
   waveLevel = 1;
   enemySpeed = 0.4;
   gameOver = false;
   isPaused = false;
   isExploding = false;
-  currentWeapon = 1;
+
+  // Si el arma equipada no tiene munición, vuelve a la básica (pero sin borrar las compras guardadas)
+  if (currentWeapon !== 1 && ammo[currentWeapon] <= 0) {
+    currentWeapon = 1;
+  }
 
   player.visible = true;
   player.x = BASE_WIDTH / 2 - 16;
