@@ -18,6 +18,7 @@ const shopGemsEl = document.getElementById('shopGems');
 const shopScoreEl = document.getElementById('shopScore');
 
 const buyLifeBtn = document.getElementById('buyLifeBtn');
+const buyCoinBtn = document.getElementById('buyCoinBtn');
 const buyGemBtn = document.getElementById('buyGemBtn');
 
 const buyWeapon1 = document.getElementById('buyWeapon1');
@@ -35,98 +36,7 @@ const wBtn3 = document.getElementById('wBtn3');
 const wBtn4 = document.getElementById('wBtn4');
 
 // -------------------------------------------------------------
-// 1. ESCALADO RESPONSIVO (AUTO-FIT)
-// -------------------------------------------------------------
-const BASE_WIDTH = 360;  
-const BASE_HEIGHT = 500; 
-
-function resizeCanvas() {
-  const containerWidth = gameContainer.clientWidth || window.innerWidth;
-  const containerHeight = gameContainer.clientHeight || window.innerHeight;
-
-  canvas.width = BASE_WIDTH;
-  canvas.height = BASE_HEIGHT;
-
-  const scale = Math.min(containerWidth / BASE_WIDTH, containerHeight / BASE_HEIGHT);
-  canvas.style.width = `${BASE_WIDTH * scale}px`;
-  canvas.style.height = `${BASE_HEIGHT * scale}px`;
-}
-
-window.addEventListener('resize', resizeCanvas);
-window.addEventListener('orientationchange', resizeCanvas);
-resizeCanvas();
-
-// -------------------------------------------------------------
-// 2. PERSISTENCIA LOCAL (PUNTOS, MONEDAS, GEMAS Y MUNICIÓN PERSISTENTE)
-// -------------------------------------------------------------
-let score = parseInt(localStorage.getItem('spaceShooterScore')) || 0;
-let highScore = parseInt(localStorage.getItem('spaceShooterHighScore')) || 0;
-let coins = parseInt(localStorage.getItem('spaceShooterCoins')) || 0;
-let gems = parseInt(localStorage.getItem('spaceShooterGems')) || 0;
-
-// Cargar munición guardada
-const ammo = {
-  1: Infinity,
-  2: parseInt(localStorage.getItem('spaceShooterAmmo2')) || 0,
-  3: parseInt(localStorage.getItem('spaceShooterAmmo3')) || 0,
-  4: parseInt(localStorage.getItem('spaceShooterAmmo4')) || 0
-};
-
-function saveProgress() {
-  if (score > highScore) {
-    highScore = score;
-    localStorage.setItem('spaceShooterHighScore', highScore);
-  }
-  localStorage.setItem('spaceShooterScore', score);
-  localStorage.setItem('spaceShooterCoins', coins);
-  localStorage.setItem('spaceShooterGems', gems);
-  
-  // Guardar munición
-  localStorage.setItem('spaceShooterAmmo2', ammo[2]);
-  localStorage.setItem('spaceShooterAmmo3', ammo[3]);
-  localStorage.setItem('spaceShooterAmmo4', ammo[4]);
-}
-
-// -------------------------------------------------------------
-// 3. MENSAJE FLOTANTE (CARD DE CONFIRMACIÓN DE COMPRA)
-// -------------------------------------------------------------
-function showPurchaseCard(itemName) {
-  let card = document.getElementById('purchaseNotificationCard');
-  if (!card) {
-    card = document.createElement('div');
-    card.id = 'purchaseNotificationCard';
-    card.style.position = 'fixed';
-    card.style.top = '20px';
-    card.style.left = '50%';
-    card.style.transform = 'translateX(-50%)';
-    card.style.backgroundColor = '#111827';
-    card.style.color = '#00ffcc';
-    card.style.border = '2px solid #00ffcc';
-    card.style.borderRadius = '10px';
-    card.style.padding = '12px 20px';
-    card.style.boxShadow = '0 0 15px rgba(0, 255, 204, 0.5)';
-    card.style.zIndex = '10000';
-    card.style.fontFamily = 'sans-serif';
-    card.style.fontWeight = 'bold';
-    card.style.fontSize = '14px';
-    card.style.textAlign = 'center';
-    card.style.transition = 'opacity 0.3s ease';
-    document.body.appendChild(card);
-  }
-
-  card.innerHTML = `🎉 ¡Has comprado: <strong>${itemName}</strong>!`;
-  card.style.opacity = '1';
-  card.style.display = 'block';
-
-  if (card.timeoutId) clearTimeout(card.timeoutId);
-  card.timeoutId = setTimeout(() => {
-    card.style.opacity = '0';
-    setTimeout(() => { card.style.display = 'none'; }, 300);
-  }, 2200);
-}
-
-// -------------------------------------------------------------
-// 4. EFECTOS Y SONIDO SINTETIZADO
+// SISTEMA DE AUDIO & EFECTO DE COMPRA
 // -------------------------------------------------------------
 const AudioContext = window.AudioContext || window.webkitAudioContext;
 let audioCtx = null;
@@ -227,6 +137,23 @@ function playPowerupSound() {
   osc.stop(audioCtx.currentTime + 0.25);
 }
 
+// SONIDO DE COMPRA
+function playBuySound() {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // Nota Do
+  osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.08); // Nota Mi
+  osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.16); // Nota Sol
+  gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.3);
+}
+
 function triggerScreenShake() {
   gameContainer.classList.remove('shake');
   void gameContainer.offsetWidth;
@@ -235,9 +162,129 @@ function triggerScreenShake() {
 }
 
 // -------------------------------------------------------------
-// 5. ESTADO GLOBAL
+// GENERADOR PROCEDURAL DE NIVELES INFINITOS
+// -------------------------------------------------------------
+let currentLevel = 1;
+let levelBannerTimer = 0;
+let hazards = [];
+
+function getLevelConfig(lvl) {
+  const themes = [
+    { name: "Nebulosa Orión", themeColor: "#00ffcc", bgCloud: "rgba(138, 43, 226, 0.12)" },
+    { name: "Cinturón de Asteroides", themeColor: "#ffaa00", bgCloud: "rgba(255, 120, 0, 0.15)" },
+    { name: "Sector Agujero Negro", themeColor: "#ff0055", bgCloud: "rgba(255, 0, 85, 0.18)" },
+    { name: "Galaxia de Plasma", themeColor: "#00ffff", bgCloud: "rgba(0, 255, 255, 0.2)" },
+    { name: "Sector Cuántico", themeColor: "#a000ff", bgCloud: "rgba(160, 0, 255, 0.15)" }
+  ];
+  const base = themes[(lvl - 1) % themes.length];
+  return {
+    level: lvl,
+    name: lvl > 5 ? `${base.name} Mk-${Math.floor(lvl / 5) + 1}` : base.name,
+    themeColor: base.themeColor,
+    bgCloud: base.bgCloud,
+    hazard: lvl >= 2 ? 'asteroids' : 'none'
+  };
+}
+
+function startNextLevel() {
+  currentLevel++;
+  levelBannerTimer = 120;
+  const config = getLevelConfig(currentLevel);
+  
+  canvas.style.borderColor = config.themeColor;
+  nebulaClouds[0].color = config.bgCloud;
+  
+  createEnemies();
+}
+
+function spawnHazard() {
+  const config = getLevelConfig(currentLevel);
+  if (config.hazard === 'asteroids' && Math.random() < 0.018) {
+    hazards.push({
+      x: Math.random() * canvas.width,
+      y: -20,
+      radius: Math.random() * 10 + 12,
+      speed: Math.random() * 1.5 + 1 + (currentLevel * 0.1),
+      rotation: 0,
+      rotSpeed: (Math.random() - 0.5) * 0.04,
+      hp: 3 + Math.floor(currentLevel / 3)
+    });
+  }
+}
+
+function updateHazards() {
+  for (let i = hazards.length - 1; i >= 0; i--) {
+    const h = hazards[i];
+    h.y += h.speed;
+    h.rotation += h.rotSpeed;
+
+    for (let bIdx = playerBullets.length - 1; bIdx >= 0; bIdx--) {
+      const b = playerBullets[bIdx];
+      if (Math.hypot(b.x - h.x, b.y - h.y) < h.radius) {
+        h.hp -= b.damage;
+        playerBullets.splice(bIdx, 1);
+        playHitSound();
+        if (h.hp <= 0) {
+          triggerExplosion(h.x, h.y, '#aaaaaa');
+          hazards.splice(i, 1);
+          score += 25;
+          scoreEl.textContent = score;
+          break;
+        }
+      }
+    }
+
+    if (player.visible && Math.hypot((player.x + 16) - h.x, (player.y + 13) - h.y) < h.radius + 10) {
+      hazards.splice(i, 1);
+      if (shieldTimer <= 0) handlePlayerHit();
+      continue;
+    }
+
+    if (h.y > canvas.height + 30) {
+      hazards.splice(i, 1);
+    }
+  }
+}
+
+function drawHazards() {
+  hazards.forEach(h => {
+    ctx.save();
+    ctx.translate(h.x, h.y);
+    ctx.rotate(h.rotation);
+    ctx.strokeStyle = '#aaaaaa';
+    ctx.fillStyle = '#1e1e2f';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, h.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  });
+}
+
+function drawLevelBanner() {
+  if (levelBannerTimer > 0) {
+    levelBannerTimer--;
+    const config = getLevelConfig(currentLevel);
+    
+    ctx.save();
+    ctx.fillStyle = config.themeColor;
+    ctx.font = 'bold 18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = config.themeColor;
+    ctx.fillText(`SECTOR ${currentLevel}: ${config.name.toUpperCase()}`, canvas.width / 2, canvas.height / 2 - 40);
+    ctx.restore();
+  }
+}
+
+// -------------------------------------------------------------
+// ESTADO Y PERSISTENCIA DE RECURSOS DEL JUGADOR
 // -------------------------------------------------------------
 let gameStarted = false;
+let score = 0;       // PERSISTENTE
+let coins = 0;       // PERSISTENTE
+let gems = 0;        // PERSISTENTE
 let lives = 3;
 let gameOver = false;
 let isPaused = false;
@@ -254,10 +301,11 @@ let selectedShip = 1;
 let unlockedShips = { 1: true, 2: false, 3: false };
 
 let currentWeapon = 1;
+const ammo = { 1: Infinity, 2: 0, 3: 0, 4: 0 };
 
 const player = {
-  x: BASE_WIDTH / 2 - 16,
-  y: BASE_HEIGHT - 50,
+  x: canvas.width / 2 - 16,
+  y: canvas.height - 50,
   width: 32,
   height: 26,
   speed: 5,
@@ -289,122 +337,85 @@ const starLayers = [
 starLayers.forEach(layer => {
   for (let i = 0; i < layer.count; i++) {
     layer.stars.push({
-      x: Math.random() * BASE_WIDTH,
-      y: Math.random() * BASE_HEIGHT
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height
     });
   }
 });
 
-// -------------------------------------------------------------
-// 6. MISIONES INFINITAS
-// -------------------------------------------------------------
-const missions = [
+let missions = [
   { id: 1, desc: 'Elimina 15 Enemigos', target: 15, current: 0, rewardType: 'coins', reward: 50, done: false },
   { id: 2, desc: 'Llega a la Oleada 3', target: 3, current: 1, rewardType: 'gems', reward: 2, done: false },
   { id: 3, desc: 'Consigue 1000 Puntos', target: 1000, current: 0, rewardType: 'gems', reward: 3, done: false }
 ];
 let currentMissionIndex = 0;
-let extraMissionLevel = 1;
 
 function updateMissionUI() {
   const m = missions[currentMissionIndex];
-  if (!m) return;
-  missionTextEl.textContent = `🎯 Misión: ${m.desc} (${m.current}/${m.target})`;
-}
-
-function generateNextInfiniteMission() {
-  extraMissionLevel++;
-  const isKillMission = Math.random() > 0.5;
-  let newMission;
-
-  if (isKillMission) {
-    const targetKills = 15 + (extraMissionLevel * 10);
-    newMission = {
-      id: Date.now(),
-      desc: `Elimina ${targetKills} Enemigos`,
-      target: targetKills,
-      current: 0,
-      rewardType: 'coins',
-      reward: 50 + (extraMissionLevel * 20),
-      done: false
-    };
-  } else {
-    const targetScore = score + (extraMissionLevel * 800);
-    newMission = {
-      id: Date.now(),
-      desc: `Alcanza ${targetScore} Puntos`,
-      target: targetScore,
-      current: score,
-      rewardType: 'gems',
-      reward: 2 + Math.floor(extraMissionLevel / 2),
-      done: false
-    };
+  if (!m) {
+    missionTextEl.textContent = "¡Todas las misiones completadas!";
+    return;
   }
-
-  missions.push(newMission);
-  updateMissionUI();
+  missionTextEl.textContent = `Misión: ${m.desc} (${m.current}/${m.target})`;
 }
 
 function checkMissionProgress(type, amount = 1) {
   const m = missions[currentMissionIndex];
   if (!m || m.done) return;
 
-  if (type === 'kill' && m.desc.includes('Elimina')) m.current += amount;
-  if (type === 'wave' && m.desc.includes('Oleada')) m.current = amount;
-  if (type === 'score' && m.desc.includes('Puntos')) m.current = amount;
+  if (type === 'kill' && m.id === 1) m.current += amount;
+  if (type === 'wave' && m.id === 2) m.current = amount;
+  if (type === 'score' && m.id === 3) m.current = amount;
 
   if (m.current >= m.target) {
     m.done = true;
     if (m.rewardType === 'coins') coins += m.reward;
     if (m.rewardType === 'gems') gems += m.reward;
-    
-    saveProgress();
     updateCoinsUI();
     playPowerupSound();
-    
     currentMissionIndex++;
-    if (currentMissionIndex >= missions.length) {
-      generateNextInfiniteMission();
-    } else {
-      updateMissionUI();
-    }
+    updateMissionUI();
   } else {
     updateMissionUI();
   }
 }
 
 // -------------------------------------------------------------
-// 7. ENEMIGOS Y JEFES
+// ENEMIGOS DINÁMICOS POR NIVEL
 // -------------------------------------------------------------
 const enemyRows = 4;
 const enemyCols = 6;
-const enemyWidth = 24;
-const enemyHeight = 18;
+const enemyWidth = 32;
+const enemyHeight = 24;
+
+const enemyPalette = [
+  ['#00ffff', '#32cd32', '#ff0055', '#ff9900'],
+  ['#ff00ff', '#00ffcc', '#ffcc00', '#ff3300'],
+  ['#00ff00', '#ff00aa', '#00aaff', '#ffffff']
+];
 
 function createEnemies() {
   enemies = [];
   boss = null;
+  const palette = enemyPalette[(currentLevel - 1) % enemyPalette.length];
+
   for (let r = 0; r < enemyRows; r++) {
     for (let c = 0; c < enemyCols; c++) {
-      const baseX = 20 + c * 42;
-      const baseY = 35 + r * 30;
+      const baseX = 24 + c * 52;
+      const baseY = 35 + r * 35;
 
       let type = 'standard';
-      let hp = 3;
-      let color = '#ff9900';
+      let hp = 3 + Math.floor(currentLevel / 2);
+      let color = palette[r % palette.length];
 
       if (r === 0) {
         type = 'shielder';
-        hp = 6;
-        color = '#00ffff';
+        hp += 2;
       } else if (r === 1) {
         type = 'healer';
-        hp = 4;
-        color = '#32cd32';
       } else if (r === 2) {
         type = 'kamikaze';
-        hp = 2;
-        color = '#ff0055';
+        hp = Math.max(2, hp - 1);
       }
 
       enemies.push({
@@ -416,11 +427,11 @@ function createEnemies() {
         height: enemyHeight,
         color: color,
         type: type,
-        points: (enemyRows - r) * 15,
+        points: (enemyRows - r) * 15 * currentLevel,
         alive: true,
         hp: hp,
         maxHp: hp,
-        shieldHp: type === 'shielder' ? 3 : 0,
+        shieldHp: type === 'shielder' ? 3 + currentLevel : 0,
         diving: false,
         diveX: 0,
         diveY: 0,
@@ -432,19 +443,22 @@ function createEnemies() {
 
 function spawnBoss() {
   boss = {
-    x: BASE_WIDTH / 2 - 40,
+    x: canvas.width / 2 - 45,
     y: 45,
-    width: 80,
-    height: 50,
-    hp: 40 + waveLevel * 10,
-    maxHp: 40 + waveLevel * 10,
+    width: 90,
+    height: 55,
+    hp: 40 + currentLevel * 20,
+    maxHp: 40 + currentLevel * 20,
     color: '#b000ff',
-    dx: 1.5,
+    dx: 1.5 + (currentLevel * 0.2),
     shootTimer: 0,
     phase2: false
   };
 }
 
+// -------------------------------------------------------------
+// DROPS Y POWER-UPS
+// -------------------------------------------------------------
 function dropPowerUp(x, y) {
   const rand = Math.random();
   let type = null;
@@ -467,6 +481,9 @@ function dropPowerUp(x, y) {
   }
 }
 
+// -------------------------------------------------------------
+// PARTÍCULAS Y EFECTOS
+// -------------------------------------------------------------
 function triggerExplosion(x, y, color = null) {
   triggerScreenShake();
   for (let i = 0; i < 25; i++) {
@@ -495,12 +512,13 @@ function spawnEngineTrail(x, y, color) {
 }
 
 function updateParticles() {
-  particles.forEach((p, index) => {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
     p.x += p.dx;
     p.y += p.dy;
     p.life--;
-    if (p.life <= 0) particles.splice(index, 1);
-  });
+    if (p.life <= 0) particles.splice(i, 1);
+  }
 }
 
 function drawParticles() {
@@ -517,7 +535,7 @@ function drawParticles() {
 }
 
 // -------------------------------------------------------------
-// 8. DIBUJO Y RENDERIZADO
+// RENDERIZADO GENERAL
 // -------------------------------------------------------------
 function drawParallaxBackground() {
   nebulaClouds.forEach(cloud => {
@@ -530,7 +548,7 @@ function drawParallaxBackground() {
 
     if (!isPaused && gameStarted) {
       cloud.y += cloud.speed;
-      if (cloud.y - cloud.radius > BASE_HEIGHT) cloud.y = -cloud.radius;
+      if (cloud.y - cloud.radius > canvas.height) cloud.y = -cloud.radius;
     }
   });
 
@@ -540,9 +558,9 @@ function drawParallaxBackground() {
       ctx.fillRect(star.x, star.y, layer.size, layer.size);
       if (!isPaused && gameStarted) {
         star.y += layer.speed * (slowMoTimer > 0 ? 0.5 : 1.0);
-        if (star.y > BASE_HEIGHT) {
+        if (star.y > canvas.height) {
           star.y = 0;
-          star.x = Math.random() * BASE_WIDTH;
+          star.x = Math.random() * canvas.width;
         }
       }
     });
@@ -652,12 +670,20 @@ function drawEnemies() {
     ctx.ellipse(x + w * 0.5, y + h * 0.4, w * 0.15, h * 0.2, 0, 0, Math.PI * 2);
     ctx.fill();
 
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillRect(x + w * 0.15, y + h * 0.7, 3, 6);
+    ctx.fillRect(x + w * 0.85 - 3, y + h * 0.7, 3, 6);
+
     if (enemy.type === 'shielder' && enemy.shieldHp > 0) {
       ctx.strokeStyle = '#00ffff';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.arc(x + w * 0.5, y + h * 0.5, 14, 0, Math.PI * 2);
+      ctx.arc(x + w * 0.5, y + h * 0.5, 20, 0, Math.PI * 2);
       ctx.stroke();
+    } else if (enemy.type === 'healer') {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x + w * 0.5 - 2, y + h * 0.3 - 2, 4, 8);
+      ctx.fillRect(x + w * 0.5 - 4, y + h * 0.3, 8, 4);
     }
 
     ctx.restore();
@@ -705,15 +731,21 @@ function drawEnemies() {
     ctx.arc(bx + bw * 0.5, by + bh * 0.45, 12, 0, Math.PI * 2);
     ctx.fill();
 
+    ctx.fillStyle = '#888899';
+    ctx.fillRect(bx + 4, by + bh * 0.7, 5, 14);
+    ctx.fillRect(bx + 14, by + bh * 0.8, 5, 14);
+    ctx.fillRect(bx + bw - 9, by + bh * 0.7, 5, 14);
+    ctx.fillRect(bx + bw - 19, by + bh * 0.8, 5, 14);
+
     ctx.shadowBlur = 0;
     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    ctx.fillRect(18, 8, BASE_WIDTH - 36, 10);
+    ctx.fillRect(18, 8, canvas.width - 36, 10);
     
     ctx.fillStyle = '#ff0055';
-    ctx.fillRect(20, 10, BASE_WIDTH - 40, 6);
+    ctx.fillRect(20, 10, canvas.width - 40, 6);
     
     ctx.fillStyle = boss.phase2 ? '#ffea00' : '#00ffcc';
-    ctx.fillRect(20, 10, (BASE_WIDTH - 40) * Math.max(0, (boss.hp / boss.maxHp)), 6);
+    ctx.fillRect(20, 10, (canvas.width - 40) * Math.max(0, (boss.hp / boss.maxHp)), 6);
 
     ctx.restore();
   }
@@ -758,7 +790,7 @@ function drawBullets() {
 }
 
 // -------------------------------------------------------------
-// 9. LÓGICA Y ACTUALIZACIÓN DE INTERFAZ
+// ACTUALIZACIÓN DE LÓGICA
 // -------------------------------------------------------------
 function updatePlayer() {
   if (!player.visible) return;
@@ -767,9 +799,9 @@ function updatePlayer() {
   player.y += player.dy;
 
   if (player.x < 0) player.x = 0;
-  if (player.x + player.width > BASE_WIDTH) player.x = BASE_WIDTH - player.width;
+  if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
   if (player.y < 30) player.y = 30;
-  if (player.y + player.height > BASE_HEIGHT) player.y = BASE_HEIGHT - player.height;
+  if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
 
   if (shieldTimer > 0) shieldTimer--;
   if (magnetTimer > 0) magnetTimer--;
@@ -777,7 +809,8 @@ function updatePlayer() {
 }
 
 function updatePowerUps() {
-  powerUps.forEach((p, index) => {
+  for (let i = powerUps.length - 1; i >= 0; i--) {
+    const p = powerUps[i];
     if (magnetTimer > 0 || p.type === 'coin' || p.type === 'gem') {
       const angle = Math.atan2(player.y - p.y, player.x - p.x);
       p.x += Math.cos(angle) * 3;
@@ -796,18 +829,18 @@ function updatePowerUps() {
       else if (p.type === 'magnet') magnetTimer = 400;
       else if (p.type === 'slow') slowMoTimer = 300;
       else if (p.type === 'bomb') executeCleanBomb();
-      else if (p.type === 'coin') { coins += 5; saveProgress(); updateCoinsUI(); }
-      else if (p.type === 'gem') { gems += 1; saveProgress(); updateCoinsUI(); }
+      else if (p.type === 'coin') { coins += 5; updateCoinsUI(); }
+      else if (p.type === 'gem') { gems += 1; updateCoinsUI(); }
 
-      powerUps.splice(index, 1);
-    } else if (p.y > BASE_HEIGHT) {
-      powerUps.splice(index, 1);
+      powerUps.splice(i, 1);
+    } else if (p.y > canvas.height) {
+      powerUps.splice(i, 1);
     }
-  });
+  }
 }
 
 function executeCleanBomb() {
-  triggerExplosion(BASE_WIDTH / 2, BASE_HEIGHT / 2, '#ff0055');
+  triggerExplosion(canvas.width / 2, canvas.height / 2, '#ff0055');
   enemyBullets = [];
   enemies.forEach(e => {
     if (e.alive) {
@@ -817,18 +850,19 @@ function executeCleanBomb() {
     }
   });
   scoreEl.textContent = score;
-  saveProgress();
 }
 
 function updateBullets() {
-  playerBullets.forEach((b, index) => {
+  for (let i = playerBullets.length - 1; i >= 0; i--) {
+    const b = playerBullets[i];
     b.x += b.vx || 0;
     b.y -= b.speed;
-    if (b.y < -10 || b.x < -10 || b.x > BASE_WIDTH + 10) playerBullets.splice(index, 1);
-  });
+    if (b.y < -10 || b.x < -10 || b.x > canvas.width + 10) playerBullets.splice(i, 1);
+  }
 
   const speedMult = slowMoTimer > 0 ? 0.5 : 1.0;
-  enemyBullets.forEach((b, index) => {
+  for (let i = enemyBullets.length - 1; i >= 0; i--) {
+    const b = enemyBullets[i];
     b.y += b.speed * speedMult;
 
     if (
@@ -838,12 +872,12 @@ function updateBullets() {
       b.y < player.y + player.height &&
       b.y + b.height > player.y
     ) {
-      enemyBullets.splice(index, 1);
+      enemyBullets.splice(i, 1);
       if (shieldTimer <= 0) handlePlayerHit();
-    } else if (b.y > BASE_HEIGHT) {
-      enemyBullets.splice(index, 1);
+    } else if (b.y > canvas.height) {
+      enemyBullets.splice(i, 1);
     }
-  });
+  }
 }
 
 function handlePlayerHit() {
@@ -859,8 +893,8 @@ function handlePlayerHit() {
     if (lives <= 0) {
       endGame();
     } else {
-      player.x = BASE_WIDTH / 2 - 16;
-      player.y = BASE_HEIGHT - 50;
+      player.x = canvas.width / 2 - 16;
+      player.y = canvas.height - 50;
       player.visible = true;
       isExploding = false;
     }
@@ -907,7 +941,7 @@ function updateEnemies() {
         enemy.x += enemySpeed * enemyDirection * speedMult;
         enemy.baseX += enemySpeed * enemyDirection * speedMult;
 
-        if (enemy.x + enemy.width >= BASE_WIDTH - 4 || enemy.x <= 4) hitEdge = true;
+        if (enemy.x + enemy.width >= canvas.width || enemy.x <= 0) hitEdge = true;
 
         if (Math.random() < 0.0006 * enemySpeed) {
           enemyBullets.push({
@@ -932,11 +966,10 @@ function updateEnemies() {
           enemy.alive = false;
           score += enemy.points;
           scoreEl.textContent = score;
-          saveProgress();
           if (shieldTimer <= 0) handlePlayerHit();
         }
 
-        if (enemy.y > BASE_HEIGHT) {
+        if (enemy.y > canvas.height) {
           enemy.diving = false;
           enemy.x = enemy.baseX;
           enemy.y = enemy.baseY;
@@ -951,7 +984,7 @@ function updateEnemies() {
 
   if (boss) {
     boss.x += boss.dx * speedMult;
-    if (boss.x <= 0 || boss.x + boss.width >= BASE_WIDTH) boss.dx *= -1;
+    if (boss.x <= 0 || boss.x + boss.width >= canvas.width) boss.dx *= -1;
 
     if (boss.hp <= boss.maxHp * 0.5) boss.phase2 = true;
 
@@ -970,7 +1003,10 @@ function updateEnemies() {
 function checkCollisions() {
   if (isWaveTransitioning) return;
 
-  playerBullets.forEach((bullet, bIndex) => {
+  for (let bIndex = playerBullets.length - 1; bIndex >= 0; bIndex--) {
+    const bullet = playerBullets[bIndex];
+    if (!bullet) continue;
+
     enemies.forEach(enemy => {
       if (
         enemy.alive &&
@@ -996,7 +1032,6 @@ function checkCollisions() {
           triggerExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, enemy.color);
           score += enemy.points;
           scoreEl.textContent = score;
-          saveProgress();
           checkMissionProgress('kill', 1);
           checkMissionProgress('score', score);
           dropPowerUp(enemy.x, enemy.y);
@@ -1020,13 +1055,12 @@ function checkCollisions() {
         playExplosionSound();
         triggerExplosion(boss.x + boss.width / 2, boss.y + boss.height / 2, '#b000ff');
         boss = null;
-        score += 500;
+        score += 500 * currentLevel;
         scoreEl.textContent = score;
-        saveProgress();
         startWaveTransition();
       }
     }
-  });
+  }
 }
 
 function startWaveTransition() {
@@ -1035,20 +1069,19 @@ function startWaveTransition() {
 
   setTimeout(() => {
     waveLevel++;
-    enemySpeed += 0.25;
+    enemySpeed += 0.2;
     checkMissionProgress('wave', waveLevel);
-    createEnemies();
     isWaveTransitioning = false;
+    startNextLevel();
   }, 2000);
 }
 
 function updateCoinsUI() {
-  scoreEl.textContent = score;
   coinsEl.textContent = coins;
   gemsEl.textContent = gems;
-  if (shopCoinsEl) shopCoinsEl.textContent = coins;
-  if (shopGemsEl) shopGemsEl.textContent = gems;
-  if (shopScoreEl) shopScoreEl.textContent = score;
+  shopCoinsEl.textContent = coins;
+  shopGemsEl.textContent = gems;
+  shopScoreEl.textContent = score;
 }
 
 function shoot() {
@@ -1067,22 +1100,19 @@ function shoot() {
     playerBullets.push({ x: player.x + player.width / 2 - 2, y: player.y, width: 4, height: 12, speed: 8, damage: 1, color: '#00ffcc' });
   } else if (currentWeapon === 2 && ammo[2] > 0) {
     ammo[2]--;
-    saveProgress(); // Guardar al gastar munición
     playerBullets.push(
       { x: player.x + 4, y: player.y + 4, width: 4, height: 12, speed: 8, damage: 1, color: '#ffea00' },
       { x: player.x + player.width - 8, y: player.y + 4, width: 4, height: 12, speed: 8, damage: 1, color: '#ffea00' }
     );
   } else if (currentWeapon === 3 && ammo[3] > 0) {
     ammo[3]--;
-    saveProgress(); // Guardar al gastar munición
     playerBullets.push(
       { x: player.x + player.width / 2 - 2, y: player.y, width: 4, height: 12, speed: 8, vx: 0, damage: 1, color: '#ff00ff' },
-      { x: player.x + 2, y: player.y + 4, width: 4, height: 7.5, vx: -1.5, damage: 1, color: '#ff00ff' },
-      { x: player.x + player.width - 6, y: player.y + 4, width: 4, height: 7.5, vx: 1.5, damage: 1, color: '#ff00ff' }
+      { x: player.x + 2, y: player.y + 4, width: 4, height: 12, speed: 7.5, vx: -1.5, damage: 1, color: '#ff00ff' },
+      { x: player.x + player.width - 6, y: player.y + 4, width: 4, height: 12, speed: 7.5, vx: 1.5, damage: 1, color: '#ff00ff' }
     );
   } else if (currentWeapon === 4 && ammo[4] > 0) {
     ammo[4]--;
-    saveProgress(); // Guardar al gastar munición
     playerBullets.push({ x: player.x + player.width / 2 - 6, y: player.y, width: 12, height: 20, speed: 10, damage: 3, color: '#00ffff' });
   }
 
@@ -1091,17 +1121,16 @@ function shoot() {
 }
 
 function endGame() {
-  saveProgress();
   gameOver = true;
   playBtn.textContent = '🔄 Juego Nuevo';
   playBtn.classList.remove('hidden');
 }
 
 // -------------------------------------------------------------
-// 10. BUCLE PRINCIPAL Y EVENTOS DE TIENDA CON NOTIFICACIONES
+// BUCLE PRINCIPAL (GAME LOOP)
 // -------------------------------------------------------------
 function gameLoop() {
-  ctx.clearRect(0, 0, BASE_WIDTH, BASE_HEIGHT);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   drawParallaxBackground();
 
@@ -1109,14 +1138,10 @@ function gameLoop() {
     ctx.fillStyle = '#00ffcc';
     ctx.font = 'bold 22px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('SPACE SHOOTER DELUXE', BASE_WIDTH / 2, BASE_HEIGHT / 2 - 30);
+    ctx.fillText('SPACE SHOOTER DELUXE', canvas.width / 2, canvas.height / 2 - 20);
     ctx.font = '14px sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('Presiona "Jugar" para comenzar', BASE_WIDTH / 2, BASE_HEIGHT / 2);
-    if (highScore > 0) {
-      ctx.fillStyle = '#ffea00';
-      ctx.fillText(`🏆 Récord Máximo: ${highScore}`, BASE_WIDTH / 2, BASE_HEIGHT / 2 + 30);
-    }
+    ctx.fillText('Presiona "Jugar" para comenzar', canvas.width / 2, canvas.height / 2 + 10);
     requestAnimationFrame(gameLoop);
     return;
   }
@@ -1125,12 +1150,7 @@ function gameLoop() {
     ctx.fillStyle = '#ff0055';
     ctx.font = 'bold 26px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('¡GAME OVER!', BASE_WIDTH / 2, BASE_HEIGHT / 2 - 20);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '16px sans-serif';
-    ctx.fillText(`Puntaje Acumulado: ${score}`, BASE_WIDTH / 2, BASE_HEIGHT / 2 + 10);
-    ctx.fillStyle = '#ffea00';
-    ctx.fillText(`Mejor Récord: ${highScore}`, BASE_WIDTH / 2, BASE_HEIGHT / 2 + 35);
+    ctx.fillText('¡GAME OVER!', canvas.width / 2, canvas.height / 2);
     return;
   }
 
@@ -1138,6 +1158,8 @@ function gameLoop() {
     updatePlayer();
     updateBullets();
     updateEnemies();
+    spawnHazard();
+    updateHazards();
     updatePowerUps();
     updateParticles();
     checkCollisions();
@@ -1146,19 +1168,24 @@ function gameLoop() {
   drawPlayer();
   drawBullets();
   drawEnemies();
+  drawHazards();
   drawPowerUps();
   drawParticles();
+  drawLevelBanner();
 
   if (isPaused) {
     ctx.fillStyle = '#ffcc00';
     ctx.font = 'bold 24px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('PAUSADO', BASE_WIDTH / 2, BASE_HEIGHT / 2);
+    ctx.fillText('PAUSADO', canvas.width / 2, canvas.height / 2);
   }
 
   requestAnimationFrame(gameLoop);
 }
 
+// -------------------------------------------------------------
+// EVENTOS, COMPRAS CON SONIDO Y CONTROLES
+// -------------------------------------------------------------
 shopBtn.addEventListener('click', () => {
   initAudio();
   if (!gameStarted || gameOver) return;
@@ -1170,6 +1197,10 @@ shopBtn.addEventListener('click', () => {
 
 closeShopBtn.addEventListener('click', () => {
   shopModal.classList.add('hidden');
+  if (gameStarted && !gameOver) {
+    isPaused = false;
+    pauseBtn.textContent = '⏸ Pausa';
+  }
 });
 
 function updateWeaponBarUI() {
@@ -1219,14 +1250,24 @@ function updateShopUI() {
   buyShip3.textContent = unlockedShips[3] ? (selectedShip === 3 ? 'Equipado' : 'Usar') : '6 💎';
 }
 
+// LÓGICA DE COMPRAS CON EFECTO DE SONIDO
 buyLifeBtn.addEventListener('click', () => {
   if (gems >= 1) { 
     gems -= 1; 
     lives++; 
-    saveProgress(); 
+    livesEl.textContent = lives; 
+    playBuySound();
     updateShopUI(); 
-    showPurchaseCard('Vida Extra ❤️');
-    shopModal.classList.add('hidden'); 
+  }
+});
+
+buyCoinBtn.addEventListener('click', () => {
+  if (score >= 100) {
+    score -= 100;
+    coins += 10;
+    scoreEl.textContent = score;
+    playBuySound();
+    updateShopUI();
   }
 });
 
@@ -1234,26 +1275,20 @@ buyGemBtn.addEventListener('click', () => {
   if (score >= 500) { 
     score -= 500; 
     gems++; 
-    saveProgress(); 
+    scoreEl.textContent = score; 
+    playBuySound();
     updateShopUI(); 
-    showPurchaseCard('1 Gema 💎 (por 500 Puntos)');
-    shopModal.classList.add('hidden'); 
   }
 });
 
-buyWeapon1.addEventListener('click', () => { 
-  selectWeapon(1); 
-  shopModal.classList.add('hidden'); 
-});
+buyWeapon1.addEventListener('click', () => { selectWeapon(1); });
 
 buyWeapon2.addEventListener('click', () => { 
   if (coins >= 50) { 
     coins -= 50; 
     ammo[2] += 30; 
+    playBuySound();
     selectWeapon(2); 
-    saveProgress(); 
-    showPurchaseCard('Disparo Doble 💥');
-    shopModal.classList.add('hidden'); 
   } 
 });
 
@@ -1261,10 +1296,8 @@ buyWeapon3.addEventListener('click', () => {
   if (coins >= 100) { 
     coins -= 100; 
     ammo[3] += 20; 
+    playBuySound();
     selectWeapon(3); 
-    saveProgress(); 
-    showPurchaseCard('Disparo Triple 🚀');
-    shopModal.classList.add('hidden'); 
   } 
 });
 
@@ -1272,33 +1305,23 @@ buyWeapon4.addEventListener('click', () => {
   if (coins >= 150) { 
     coins -= 150; 
     ammo[4] += 10; 
+    playBuySound();
     selectWeapon(4); 
-    saveProgress(); 
-    showPurchaseCard('Cañón Plasma 🔮');
-    shopModal.classList.add('hidden'); 
   } 
 });
 
-selectShip1.addEventListener('click', () => { 
-  selectedShip = 1; 
-  player.speed = 5; 
-  updateShopUI(); 
-  shopModal.classList.add('hidden'); 
-});
+selectShip1.addEventListener('click', () => { selectedShip = 1; player.speed = 5; updateShopUI(); });
 
 buyShip2.addEventListener('click', () => {
   if (unlockedShips[2]) { 
     selectedShip = 2; 
     player.speed = 7; 
-    shopModal.classList.add('hidden'); 
   } else if (gems >= 3) { 
     gems -= 3; 
     unlockedShips[2] = true; 
     selectedShip = 2; 
     player.speed = 7; 
-    saveProgress(); 
-    showPurchaseCard('Nave Veloz 🛩️');
-    shopModal.classList.add('hidden'); 
+    playBuySound();
   }
   updateShopUI();
 });
@@ -1307,15 +1330,12 @@ buyShip3.addEventListener('click', () => {
   if (unlockedShips[3]) { 
     selectedShip = 3; 
     player.speed = 5; 
-    shopModal.classList.add('hidden'); 
   } else if (gems >= 6) { 
     gems -= 6; 
     unlockedShips[3] = true; 
     selectedShip = 3; 
     player.speed = 5; 
-    saveProgress(); 
-    showPurchaseCard('Nave Pesada 🛸');
-    shopModal.classList.add('hidden'); 
+    playBuySound();
   }
   updateShopUI();
 });
@@ -1325,24 +1345,28 @@ function startGame() {
   gameStarted = true;
   lives = selectedShip === 3 ? 4 : 3;
   waveLevel = 1;
+  currentLevel = 1;
   enemySpeed = 0.4;
   gameOver = false;
   isPaused = false;
   isExploding = false;
-
-  // Si el arma equipada no tiene munición, vuelve a la básica (pero sin borrar las compras guardadas)
-  if (currentWeapon !== 1 && ammo[currentWeapon] <= 0) {
-    currentWeapon = 1;
-  }
+  
+  // Mantenemos score, coins y gems intactos (PROGRESO PERSISTENTE)
 
   player.visible = true;
-  player.x = BASE_WIDTH / 2 - 16;
-  player.y = BASE_HEIGHT - 50;
+  player.x = canvas.width / 2 - 16;
+  player.y = canvas.height - 50;
   playerBullets = [];
   enemyBullets = [];
   powerUps = [];
   particles = [];
+  hazards = [];
 
+  const config = getLevelConfig(currentLevel);
+  canvas.style.borderColor = config.themeColor;
+  nebulaClouds[0].color = config.bgCloud;
+
+  scoreEl.textContent = score;
   livesEl.textContent = lives;
   updateCoinsUI();
   updateWeaponBarUI();
@@ -1357,38 +1381,23 @@ function startGame() {
 
 playBtn.addEventListener('click', startGame);
 
-// CONTROLES TÁCTILES
 let lastTouchX = 0, lastTouchY = 0, isDragging = false;
-
-function getCanvasCoordinates(e) {
-  const rect = canvas.getBoundingClientRect();
-  const touch = e.touches[0];
-  return {
-    x: (touch.clientX - rect.left) * (BASE_WIDTH / rect.width),
-    y: (touch.clientY - rect.top) * (BASE_HEIGHT / rect.height)
-  };
-}
-
 canvas.addEventListener('touchstart', (e) => {
   e.preventDefault(); initAudio();
   if (!gameStarted || gameOver || isPaused || !player.visible) return;
-  const coords = getCanvasCoordinates(e);
-  lastTouchX = coords.x;
-  lastTouchY = coords.y;
-  isDragging = false;
+  const touch = e.touches[0];
+  lastTouchX = touch.clientX; lastTouchY = touch.clientY; isDragging = false;
 }, { passive: false });
 
 canvas.addEventListener('touchmove', (e) => {
   e.preventDefault();
   if (!gameStarted || gameOver || isPaused || !player.visible) return;
-  const coords = getCanvasCoordinates(e);
-  const deltaX = coords.x - lastTouchX;
-  const deltaY = coords.y - lastTouchY;
-  if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) isDragging = true;
-  player.x += deltaX;
-  player.y += deltaY;
-  lastTouchX = coords.x;
-  lastTouchY = coords.y;
+  const touch = e.touches[0];
+  const deltaX = touch.clientX - lastTouchX;
+  const deltaY = touch.clientY - lastTouchY;
+  if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) isDragging = true;
+  player.x += deltaX; player.y += deltaY;
+  lastTouchX = touch.clientX; lastTouchY = touch.clientY;
 }, { passive: false });
 
 canvas.addEventListener('touchend', (e) => {
