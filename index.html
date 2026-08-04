@@ -1,239 +1,130 @@
 <!DOCTYPE html>
-<head><title>developer</title>
-
-<style>
-*{padding: 0;
-margin: 0;
-
-}
-
-body{width:100%; height: 100%; background: #ffffff;}
-  
- .section01{margin: 2px;  height: 12px; width:80%; }
-.section01 img{ height: 12px; float: right;} 
-  
-.container{ 
-height: 150px; width:100%;}
-
-#section1{text-align: center;
-width:44%; height: 150px; float: right; }
-#section1 img{border:  1px solid black; border-radius: 10px;  text-align: center;}
-
-  
-#section2{
-width:55%; height: 100px;}
-#titulo{ padding: 15px; margin: 10px; text-align: center;}
-
-#section3{
-width:55%; height: 49px; display: flex;}
-
-#section4{ width:50%; height: 49px; margin: 10px; text-align: center;}
-#linea{ height: 49px; border:  1px solid black;}
-#section5{width:50%; height: 49px; float: right; margin: 10px; text-align: center;}
-
-
-
-.nav{width:100%; height: 30px; text-align: center;}
-
-.nav a{display: block; text-decoration: none;
-    font-size: 16px; /* Tamaño de letra */
-    text-transform: uppercase; /* Letras en mayúscula */
-    background: #6B3618; /* Color de fondo */
-    padding: 10px 15px; /* Relleno */
-    margin: 10px;
-    color: #FFD059; /* Color de texto */
-    border-bottom: solid 2px #FFD059; /* Borde inferior */
-    border-radius: 10px; color: #ffffff;  }
-
-  #section03{
-width:100%; height: 49px; display: flex;}
-#section08{ width:10%;}
-  
-#section04{ width:50%; height: 49px; padding: 2px; 49px; float: right; margin: 10px; text-align: center;}
-
-#section05{width:50%; height: 49px; float: right; margin: 10px; text-align: center;}
-#section05 a{display: block; text-decoration: none;
-    font-size: 14px; /* Tamaño de letra */
-    text-transform: uppercase; /* Letras en mayúscula */
-    background: #6B3618; /* Color de fondo */
-    padding: 10px 15px; /* Relleno */
-    margin: 1px;
-    color: #FFD059; /* Color de texto */
-    border-bottom: solid 2px #FFD059; /* Borde inferior */
-    border-radius: 10px; color: #ffffff;  }
-
-  
-.main{   width:100%;  max-height: 220px;  display: flex; overflow-x: auto;}
-#section6 img{ border: 1px solid black; border-radius: 10px; height: 200px; width: 130px;  display: flex;}
-#section6{ margin: 5px; border-radius: 10px;  display: flex;}
-#section6 video{ border: 1px solid black; border-radius: 10px; height: 200px; width: 130px;  display: flex;}
-
-.footer{ width:90%; height: 100%; margin: 5px;  }
-p{padding: 10px; }
-  
-.version{ width:90%; height: 40px; }
-   
- 
-
-header1{display: flex; width:100%;}
-
-.logo1{ padding: 15px; width:10px;}
-.log1 { height 30px; width:30px; }
-.log1 img{  height: 30px; width:30px;}
-
-
-.nombre1{ padding: 20px; height 30px; width:100%;}
-.nombre1 p{font-size: 12px; }
-  
-  header{ display: flex; height 60px; width:100%;}
-
-.logo{ padding: 15px; width:70px;}
-.log {height 60px; width:60px; text-align: center;}
-.log img{border:1px solid black; border-radius: 10px; height: 60px; width:60px;}
-
-.nombre{height 50px; width:100%;}
-.nombre p{font-size: 12px; }
-</style>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Space Shooter Arcade Deluxe</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
- 
- <section class="section01">
-  <img style="border: 0px solid; display: inline;" alt="contador de visitas" src="https://websmultimedia.com/contador-de-visitas.php?id=6607">
- </section>
- 
-<div class="container">
-<section id="section1"><img src="1.webp" width="110"  height="110">
-</section>
+  <div class="game-container" id="gameContainer">
+    <div class="hud">
+      <div class="hud-item">PUNTOS: <span id="score">0</span></div>
+      <div class="hud-item coins-text">🪙 <span id="coins">0</span></div>
+      <div class="hud-item gems-text">💎 <span id="gems">0</span></div>
+      <button id="shopBtn" class="btn shop-btn">🛍️ Tienda</button>
+      <div class="hud-item lives-text">VIDAS: <span id="lives">3</span></div>
+    </div>
 
-<section id="section2"><center><h3 id="titulo">Santa Biblia Reina Valera 1960 </h3></center>
-</section>
+    <!-- PANEL DE MISIÓN / LOGROS RAPIDOS -->
+    <div class="mission-hud">
+      🎯 <span id="missionText">Misión: Cargando...</span>
+    </div>
 
-<section id="section3">
-<div id="section4">Versión<br><h5>2.0.11</h5>
-</div>
-<div id="linea"></div>
-<div id="section5">Tamaño<br><h5>5.79 MB</h5>
-</div>
-</section>
-</div>
+    <canvas id="gameCanvas" width="360" height="500"></canvas>
 
-<div class="nav"> 
-<a href="Santa Biblia Reina Valera 1960_2.0.11_developer-shop.apk" download="Santa Biblia Reina Valera 1960_2.0.11_developer-shop" ><center>Descargar</center></a>
-</div>
+    <!-- BARRA INFERIOR DE ARMAS Y PAUSA -->
+    <div class="bottom-controls">
+      <div class="weapon-bar">
+        <button id="wBtn1" class="w-btn active">⚡ 1x (∞)</button>
+        <button id="wBtn2" class="w-btn locked">💥 2x 🔒</button>
+        <button id="wBtn3" class="w-btn locked">🚀 3x 🔒</button>
+        <button id="wBtn4" class="w-btn locked">🔮 Plasma 🔒</button>
+      </div>
+      <button id="pauseBtn" class="btn pause-btn-bottom">⏸ Pausa</button>
+    </div>
 
- <section id="section03">
-<div id="section08">
-</div>
-<div id="section04"><b>Calificación:</b><br>4.6<img src="19.png">
-</div>
-<div id="section05"><a href="comentarios.html" ><center>Comentarios</center></a> 
-</div>
-</section>
- 
- 
- 
- 
-<div class="main">
+    <button id="playBtn" class="btn play-btn-bottom-left">▶ Jugar</button>
 
-<section id="section6">
-<img src="2.webp" >
-</section>
-<section id="section6">
-<img src="3.webp">
-</section>
-<section id="section6">
-<img src="4.webp"  >
-</section>
-<section id="section6">
-<img src="5.webp" >
-</section>
-<section id="section6">
-<img src="6.webp" >
-</section> 
- 
-</div>
+    <!-- MODAL DE LA TIENDA -->
+    <div id="shopModal" class="shop-modal hidden">
+      <div class="shop-content">
+        <h2>🛍️ Tienda Espacial</h2>
+        <div class="modal-resources">
+          <span>🪙 <span id="shopCoins">0</span></span> | 
+          <span>💎 <span id="shopGems">0</span></span> | 
+          <span>Pts: <span id="shopScore">0</span></span>
+        </div>
 
-<div class="footer">
-<p>
-<h4>Descripción:</h4><br><p>SANTA BIBLIA REINA VALERA 1960 APP<br>
-Santa Biblia Reina Valera con Audio.<br>
+        <div class="shop-items">
+          <div class="shop-item">
+            <div class="item-info">
+              <span class="item-title">❤️ +1 Vida Extra</span>
+              <span class="item-desc">Añade 1 vida a tu partida</span>
+            </div>
+            <button id="buyLifeBtn" class="btn buy-btn">1 💎</button>
+          </div>
 
-No necesita conexión a Internet para su funcionamiento.<br>
+          <div class="shop-item">
+            <div class="item-info">
+              <span class="item-title">💎 Canjear Diamante</span>
+              <span class="item-desc">Cuesta 500 Puntos</span>
+            </div>
+            <button id="buyGemBtn" class="btn buy-btn">Canjear 💎</button>
+          </div>
 
-Interfaz amigable al usuario y de rápido acceso a los libros, capítulos y versículos.<br>
+          <div class="shop-item">
+            <div class="item-info">
+              <span class="item-title">⚡ Disparo Normal</span>
+              <span class="item-desc">Munición Infinita</span>
+            </div>
+            <button id="buyWeapon1" class="btn buy-btn">Equipado</button>
+          </div>
 
-Guarde sus versículos favoritos e incluya notas.<br>
+          <div class="shop-item">
+            <div class="item-info">
+              <span class="item-title">💥 Doble Disparo</span>
+              <span class="item-desc">+30 Disparos (Daño: 1)</span>
+            </div>
+            <button id="buyWeapon2" class="btn buy-btn">Comprar (50 🪙)</button>
+          </div>
 
-Audios Completos, puede descargarlos y escucharlos cuando quiera.<br>
+          <div class="shop-item">
+            <div class="item-info">
+              <span class="item-title">🚀 Triple Disparo</span>
+              <span class="item-desc">+20 Disparos (Daño: 1)</span>
+            </div>
+            <button id="buyWeapon3" class="btn buy-btn">Comprar (100 🪙)</button>
+          </div>
 
-Búsqueda Avanzada de Versículos.<br>
+          <div class="shop-item">
+            <div class="item-info">
+              <span class="item-title">🔮 Plasma Gigante</span>
+              <span class="item-desc">+10 Disparos (Daño: 3 - Instakill)</span>
+            </div>
+            <button id="buyWeapon4" class="btn buy-btn">Comprar (150 🪙)</button>
+          </div>
 
-Compatibilidad con Tablets.<br>
+          <div class="shop-item">
+            <div class="item-info">
+              <span class="item-title">🚀 Nave Inicial</span>
+              <span class="item-desc">Nave estándar</span>
+            </div>
+            <button id="selectShip1" class="btn buy-btn">Usar</button>
+          </div>
 
-Esperamos que esta aplicación sea de bendición en sus vidas.<br>
-</p>
-</div>
-  
-<div class="footer">
-<p><pre>
-<h4>  Datos del desarrollador</h4></pre>
-</div>
+          <div class="shop-item">
+            <div class="item-info">
+              <span class="item-title">⚡ Nave Veloz</span>
+              <span class="item-desc">Mayor velocidad (+2)</span>
+            </div>
+            <button id="buyShip2" class="btn buy-btn">3 💎</button>
+          </div>
 
-<header1>
-<div class="logo1">
-<div class="log1">
-<img src=" desarrollador.png" >
-</div>
-</div>
-<div class="nombre1">
-Reyfasoft
-</div>
-</header1>
+          <div class="shop-item">
+            <div class="item-info">
+              <span class="item-title">🛡️ Nave Titán</span>
+              <span class="item-desc">Con Alas +1 Vida</span>
+            </div>
+            <button id="buyShip3" class="btn buy-btn">6 💎</button>
+          </div>
+        </div>
 
-<header1>
-<div class="logo1">
-<div class="log1">
-<img src="email.png" >
-</div>
-</div>
-<div class="nombre1">
-reyfasoft@gmail.com
-</div>
-</header1>
+        <button id="closeShopBtn" class="btn close-btn">Cerrar</button>
+      </div>
+    </div>
+  </div>
 
- <header1>
-<div class="logo1">
-<div class="log1">
-<a href="http://reyfasoft.com"><img src="web.png " ></a>
-</div>
-</div>
-<div class="nombre1">
-http://reyfasoft.com
-</div>
-</header1>    
-   
-  
-<header1>
-<div class="logo1">
-<div class="log1">
-<a href="http://reyfasoft.com/apps/policy.html"><img src="privacidad.png " ></a>
-</div>
-</div>
-<div class="nombre1">
-Politica de privacidad 
-</div>
-</header1>    
-  
- <header1>
-<div class="logo1">
-<div class="log1">
-<a href="https://play.google.com/store/apps/details?id=org.reyfasoft.reinavalera1960&ref=apkcombo.com"><img src="play.jpg " ></a>
-</div>
-</div>
-<div class="nombre1">
-Google Play ID
-</div>
-</header1>   
-  
+  <script src="script.js"></script>
 </body>
 </html>
